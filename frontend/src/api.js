@@ -101,9 +101,9 @@ class ApiClient {
       method: 'POST',
       body: { email, password }
     });
-    // The SimpleJWT obtain pair view returns { access, refresh }
-    if (res.access) {
-      this.setTokens(res.access, res.refresh);
+    const data = res.data || res;
+    if (data.access) {
+      this.setTokens(data.access, data.refresh);
     }
     return res;
   }
@@ -356,6 +356,28 @@ class ApiClient {
     return await this.request('/api/ai/meeting-notes/', {
       method: 'POST',
       body: { meeting_text: meetingText }
+    });
+  }
+
+  // Password Management
+  async forgotPassword(email) {
+    return await this.request('/api/accounts/forgot-password/', {
+      method: 'POST',
+      body: { email }
+    });
+  }
+
+  async resetPassword(uid, token, newPassword) {
+    return await this.request('/api/accounts/reset-password/', {
+      method: 'POST',
+      body: { uid, token, new_password: newPassword }
+    });
+  }
+
+  async changePassword(oldPassword, newPassword) {
+    return await this.request('/api/accounts/change-password/', {
+      method: 'POST',
+      body: { old_password: oldPassword, new_password: newPassword }
     });
   }
 }

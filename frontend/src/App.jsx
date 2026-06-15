@@ -43,6 +43,16 @@ export default function App() {
   const [phone, setPhone] = useState('');
   const [authError, setAuthError] = useState('');
   const [authSuccess, setAuthSuccess] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [resetUid, setResetUid] = useState('');
+  const [resetToken, setResetToken] = useState('');
+
+  // Change Password Modal State
+  const [changePasswordModalOpen, setChangePasswordModalOpen] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [changePasswordError, setChangePasswordError] = useState('');
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState('');
 
   // Notifications State
   const [unreadCount, setUnreadCount] = useState(0);
@@ -51,7 +61,16 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    checkAuth();
+    const path = window.location.pathname;
+    const match = path.match(/\/reset-password\/([^/]+)\/([^/]+)\/?/);
+    if (match) {
+      setResetUid(match[1]);
+      setResetToken(match[2]);
+      setAuthMode('reset');
+      setLoading(false);
+    } else {
+      checkAuth();
+    }
   }, []);
 
   useEffect(() => {
@@ -107,7 +126,8 @@ export default function App() {
     try {
       setLoading(true);
       const res = await api.login(email, password);
-      if (res.access) {
+      const data = res.data || res;
+      if (data.access) {
         // Load User Profile
         const profileRes = await api.getProfile();
         if (profileRes.success) {
@@ -161,6 +181,79 @@ export default function App() {
     localStorage.removeItem('active_org_id');
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthSuccess('');
+    try {
+      setLoading(true);
+      const res = await api.forgotPassword(email);
+      if (res.success) {
+        setAuthSuccess(res.message || 'If that email exists, we have sent a password reset link.');
+      }
+    } catch (err) {
+      setAuthError(err.data?.message || 'Failed to send password reset request.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthSuccess('');
+    if (password !== confirmPassword) {
+      setAuthError('Passwords do not match.');
+      return;
+    }
+    if (password.length < 8) {
+      setAuthError('Password must be at least 8 characters long.');
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await api.resetPassword(resetUid, resetToken, password);
+      if (res.success) {
+        setAuthSuccess(res.message || 'Password reset successful! Redirecting to login...');
+        setTimeout(() => {
+          setAuthMode('login');
+          setAuthSuccess('');
+          setPassword('');
+          setConfirmPassword('');
+          window.history.pushState({}, document.title, "/");
+        }, 3000);
+      }
+    } catch (err) {
+      setAuthError(err.data?.message || 'Failed to reset password.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setChangePasswordError('');
+    setChangePasswordSuccess('');
+    if (newPassword.length < 8) {
+      setChangePasswordError('New password must be at least 8 characters long.');
+      return;
+    }
+    try {
+      const res = await api.changePassword(oldPassword, newPassword);
+      if (res.success) {
+        setChangePasswordSuccess(res.message || 'Password changed successfully!');
+        setTimeout(() => {
+          setChangePasswordModalOpen(false);
+          setOldPassword('');
+          setNewPassword('');
+          setChangePasswordSuccess('');
+        }, 2000);
+      }
+    } catch (err) {
+      setChangePasswordError(err.data?.message || 'Failed to change password.');
+    }
+  };
+
   const refreshAllData = async () => {
     // When workspace switches, refetch profile & notifications
     fetchUnreadNotificationsCount();
@@ -175,7 +268,7 @@ export default function App() {
     );
   }
 
-  // Render Auth Pages (Login / Register)
+  // Render Auth Pages (Login / Register / Forgot / Reset)
   if (!user) {
     return (
       <div style={{
@@ -192,7 +285,10 @@ export default function App() {
               Oppora CRM
             </h2>
             <p style={{ color: 'hsl(var(--text-secondary))', marginTop: '6px', fontSize: '0.9rem' }}>
-              {authMode === 'login' ? 'Welcome back! Log in to manage your sales pipeline' : 'Create an account to get started'}
+              {authMode === 'login' && 'Welcome back! Log in to manage your sales pipeline'}
+              {authMode === 'register' && 'Create an account to get started'}
+              {authMode === 'forgot' && 'Reset your password via email link'}
+              {authMode === 'reset' && 'Enter your new password below'}
             </p>
           </div>
 
@@ -208,93 +304,202 @@ export default function App() {
             </div>
           )}
 
-          <form onSubmit={authMode === 'login' ? handleLogin : handleRegister}>
-            {authMode === 'register' && (
+          {authMode === 'forgot' ? (
+            <form onSubmit={handleForgotPassword}>
               <div className="form-group">
-                <label className="form-label">Username</label>
+                <label className="form-label">Email Address</label>
                 <div style={{ position: 'relative' }}>
-                  <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
+                  <Mail size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
                   <input
-                    type="text"
+                    type="email"
                     className="form-input"
+                    id="forgot-email"
                     style={{ paddingLeft: '40px' }}
-                    placeholder="john_doe"
-                    value={username}
-                    onChange={e => setUsername(e.target.value)}
+                    placeholder="your-email@example.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
                     required
                   />
                 </div>
               </div>
-            )}
-
-            <div className="form-group">
-              <label className="form-label">Email Address</label>
-              <div style={{ position: 'relative' }}>
-                <Mail size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
-                <input
-                  type="email"
-                  className="form-input"
-                  style={{ paddingLeft: '40px' }}
-                  placeholder="admin@gmail.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <div style={{ position: 'relative' }}>
-                <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
-                <input
-                  type="password"
-                  className="form-input"
-                  style={{ paddingLeft: '40px' }}
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            {authMode === 'register' && (
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                Send Reset Link
+              </button>
+            </form>
+          ) : authMode === 'reset' ? (
+            <form onSubmit={handleResetPassword}>
               <div className="form-group">
-                <label className="form-label">Phone Number</label>
+                <label className="form-label">New Password</label>
                 <div style={{ position: 'relative' }}>
-                  <Phone size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
+                  <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
                   <input
-                    type="text"
+                    type="password"
                     className="form-input"
+                    id="reset-password"
                     style={{ paddingLeft: '40px' }}
-                    placeholder="+1 (555) 019-2834"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value)}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
                   />
                 </div>
               </div>
-            )}
+              <div className="form-group">
+                <label className="form-label">Confirm New Password</label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
+                  <input
+                    type="password"
+                    className="form-input"
+                    id="reset-confirm-password"
+                    style={{ paddingLeft: '40px' }}
+                    placeholder="••••••••"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                Reset Password
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={authMode === 'login' ? handleLogin : handleRegister}>
+              {authMode === 'register' && (
+                <div className="form-group">
+                  <label className="form-label">Username</label>
+                  <div style={{ position: 'relative' }}>
+                    <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ paddingLeft: '40px' }}
+                      placeholder="john_doe"
+                      value={username}
+                      onChange={e => setUsername(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
 
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
-              {authMode === 'login' ? 'Log In' : 'Sign Up'}
-            </button>
-          </form>
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
+                  <input
+                    type="email"
+                    className="form-input"
+                    style={{ paddingLeft: '40px' }}
+                    placeholder="admin@gmail.com"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Password</label>
+                  {authMode === 'login' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('forgot');
+                        setAuthError('');
+                        setAuthSuccess('');
+                      }}
+                      style={{ background: 'none', border: 'none', color: 'hsl(var(--color-primary-hover))', fontSize: '0.8rem', cursor: 'pointer', fontWeight: '500' }}
+                    >
+                      Forgot Password?
+                    </button>
+                  )}
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
+                  <input
+                    type="password"
+                    className="form-input"
+                    style={{ paddingLeft: '40px' }}
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              {authMode === 'register' && (
+                <div className="form-group">
+                  <label className="form-label">Phone Number</label>
+                  <div style={{ position: 'relative' }}>
+                    <Phone size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
+                    <input
+                      type="text"
+                      className="form-input"
+                      style={{ paddingLeft: '40px' }}
+                      placeholder="+1 (555) 019-2834"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '1rem' }}>
+                {authMode === 'login' ? 'Log In' : 'Sign Up'}
+              </button>
+            </form>
+          )}
 
           <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.88rem' }}>
-            <span style={{ color: 'hsl(var(--text-secondary))' }}>
-              {authMode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-            </span>
-            <button
-              onClick={() => {
-                setAuthMode(authMode === 'login' ? 'register' : 'login');
-                setAuthError('');
-                setAuthSuccess('');
-              }}
-              style={{ background: 'none', border: 'none', color: 'hsl(var(--color-primary-hover))', fontWeight: '700', cursor: 'pointer' }}
-            >
-              {authMode === 'login' ? 'Create one' : 'Log in'}
-            </button>
+            {authMode === 'login' && (
+              <>
+                <span style={{ color: 'hsl(var(--text-secondary))' }}>Don't have an account? </span>
+                <button
+                  onClick={() => {
+                    setAuthMode('register');
+                    setAuthError('');
+                    setAuthSuccess('');
+                  }}
+                  style={{ background: 'none', border: 'none', color: 'hsl(var(--color-primary-hover))', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  Create one
+                </button>
+              </>
+            )}
+            {authMode === 'register' && (
+              <>
+                <span style={{ color: 'hsl(var(--text-secondary))' }}>Already have an account? </span>
+                <button
+                  onClick={() => {
+                    setAuthMode('login');
+                    setAuthError('');
+                    setAuthSuccess('');
+                  }}
+                  style={{ background: 'none', border: 'none', color: 'hsl(var(--color-primary-hover))', fontWeight: '700', cursor: 'pointer' }}
+                >
+                  Log in
+                </button>
+              </>
+            )}
+            {(authMode === 'forgot' || authMode === 'reset') && (
+              <button
+                onClick={() => {
+                  setAuthMode('login');
+                  setAuthError('');
+                  setAuthSuccess('');
+                  if (authMode === 'reset') {
+                    window.history.pushState({}, document.title, "/");
+                  }
+                }}
+                style={{ background: 'none', border: 'none', color: 'hsl(var(--color-primary-hover))', fontWeight: '700', cursor: 'pointer' }}
+              >
+                Back to Login
+              </button>
+            )}
           </div>
           
           <div style={{ marginTop: '2rem', padding: '10px', background: 'hsl(var(--bg-base))', borderRadius: 'var(--radius-sm)', border: '1px solid hsl(var(--border-color))', fontSize: '0.75rem', color: 'hsl(var(--text-muted))', textAlign: 'center' }}>
@@ -444,9 +649,22 @@ export default function App() {
               <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</p>
             </div>
           </div>
-          <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))' }} title="Logout">
-            <LogOut size={18} />
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button 
+              onClick={() => {
+                setChangePasswordModalOpen(true);
+                setChangePasswordError('');
+                setChangePasswordSuccess('');
+              }} 
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))' }} 
+              title="Change Password"
+            >
+              <Lock size={18} />
+            </button>
+            <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))' }} title="Logout">
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -485,6 +703,76 @@ export default function App() {
           {renderActiveView()}
         </main>
       </div>
+
+      {/* Change Password Modal */}
+      {changePasswordModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 style={{ fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Lock size={18} style={{ color: 'hsl(var(--color-primary-hover))' }} />
+                Change Password
+              </h3>
+              <button 
+                onClick={() => setChangePasswordModalOpen(false)} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword}>
+              <div className="modal-body">
+                {changePasswordError && (
+                  <div style={{ background: 'hsl(var(--color-danger) / 0.1)', border: '1px solid hsl(var(--color-danger) / 0.2)', padding: '10px 12px', borderRadius: 'var(--radius-md)', color: 'hsl(var(--color-danger))', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                    {changePasswordError}
+                  </div>
+                )}
+                {changePasswordSuccess && (
+                  <div style={{ background: 'hsl(var(--color-success) / 0.1)', border: '1px solid hsl(var(--color-success) / 0.2)', padding: '10px 12px', borderRadius: 'var(--radius-md)', color: 'hsl(var(--color-success))', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                    {changePasswordSuccess}
+                  </div>
+                )}
+                <div className="form-group">
+                  <label className="form-label">Old Password</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    id="change-old-password"
+                    placeholder="••••••••"
+                    value={oldPassword}
+                    onChange={e => setOldPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">New Password</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    id="change-new-password"
+                    placeholder="••••••••"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setChangePasswordModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
