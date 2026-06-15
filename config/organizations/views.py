@@ -4,10 +4,9 @@ from django.db.models import Count
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from common.permissions import IsOrganizationAdmin
+from common.permissions import IsOrganizationAdmin, IsOrgAdmin, IsOrgManager, IsOrgMember
 from notifications.utils import create_notification, send_email_notification
 from rest_framework.permissions import IsAuthenticated
-from common.permissions import IsOrganizationAdmin
 from .models import Organization, TeamMember
 from .serializers import OrganizationSerializer
 from .models import (
@@ -82,7 +81,7 @@ class TeamMemberCreateView(APIView):
 
     permission_classes = [
         IsAuthenticated,
-        IsOrganizationAdmin
+        IsOrgAdmin
     ]
 
     def post(self, request):
@@ -145,15 +144,16 @@ class TeamMemberCreateView(APIView):
                     status=400
                 )
 
-            create_notification(
-                user=user,
-                title="Organization Invitation",
-                message=f"You were added to {organization.name}"
+            from notifications.tasks import create_notification_task, send_email_task
+            create_notification_task.delay(
+                user.id,
+                "Organization Invitation",
+                f"You were added to {organization.name}"
             )
-            send_email_notification(
-                user=user,
-                subject="You have been added to a new organization",
-                message=(
+            send_email_task.delay(
+                user.id,
+                "You have been added to a new organization",
+                (
                     f"Hello {user.username},\n\n"
                     f"You have been added to the organization '{organization.name}' as a {serializer.validated_data['role']}.\n"
                     "You can now access the organization and its CRM data.\n\n"
@@ -193,7 +193,8 @@ class TeamMemberListView(
 ):
 
     permission_classes = [
-        IsAuthenticated
+        IsAuthenticated,
+        IsOrgMember
     ]
 
     def get(
@@ -218,28 +219,65 @@ class TeamMemberListView(
                 serializer.data
             }
         )
-    
+class OrganizationUpdateView(APIView):
+    permission_classes = [IsAuthenticated, IsOrgAdmin]
+
+    def patch(self, request, pk):
+        try:
+            organization = Organization.objects.get(id=pk)
+        except Organization.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Organization not found"
+            }, status=404)
+
+        self.check_object_permissions(request, organization)
+
+        serializer = OrganizationSerializer(
+            organization,
+            data=request.data,
+            partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "success": True,
+                "message": "Organization settings updated",
+                "data": serializer.data
+            })
+
+        return Response({
+            "success": False,
+            "errors": serializer.errors
+        }, status=400)
+
 class OrganizationStatsView(APIView):
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from django.core.cache import cache
+        from common.responses import success_response
 
-        organizations = Organization.objects.annotate(
-            total_contacts=Count("contacts")
-        )
+        cache_key = "org_stats_data"
+        data = cache.get(cache_key)
 
-        data = []
+        if not data:
+            organizations = Organization.objects.annotate(
+                total_contacts=Count("contacts")
+            )
 
-        for org in organizations:
+            data = []
 
-            data.append({
-                "id": org.id,
-                "name": org.name,
-                "total_contacts": org.total_contacts
-            })
+            for org in organizations:
 
-        return Response({
-            "success": True,
-            "data": data
-        })
+                data.append({
+                    "id": org.id,
+                    "name": org.name,
+                    "total_contacts": org.total_contacts
+                })
+            
+            cache.set(cache_key, data, timeout=60)
+
+        return success_response(data=data, message="Organization statistics retrieved successfully")

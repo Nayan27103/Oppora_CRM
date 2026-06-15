@@ -25,7 +25,8 @@ class Lead(models.Model):
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default="NEW"
+        default="NEW",
+        db_index=True
     )
 
     score = models.IntegerField(
@@ -37,7 +38,8 @@ class Lead(models.Model):
     )
 
     created_at = models.DateTimeField(
-        auto_now_add=True
+        auto_now_add=True,
+        db_index=True
     )
 
     updated_at = models.DateTimeField(

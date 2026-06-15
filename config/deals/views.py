@@ -7,15 +7,26 @@ from .serializers import DealSerializer
 from django.db import transaction
 from leads.models import Lead
 from notifications.models import Notification
+from common.permissions import IsOrgAdmin, IsOrgManager, IsOrgMember
 
 
 
 # Create your views here.
 class DealCreateView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOrgMember]
 
     def post(self, request):
+        lead_id = request.data.get("lead")
+        if not lead_id:
+            return Response({"success": False, "message": "Lead is required"}, status=400)
+            
+        try:
+            lead = Lead.objects.get(id=lead_id)
+        except Lead.DoesNotExist:
+            return Response({"success": False, "message": "Lead not found"}, status=404)
+
+        self.check_object_permissions(request, lead.contact.organization)
 
         serializer = DealSerializer(
             data=request.data
@@ -40,9 +51,10 @@ class DealCreateView(APIView):
     
 class DealListView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOrgMember]
 
     def get(self, request):
+        from common.responses import success_response
 
         deals = Deal.objects.select_related(
             "lead",
@@ -56,15 +68,14 @@ class DealListView(APIView):
             many=True
         )
 
-        return Response({
-            "success": True,
-            "count": deals.count(),
-            "data": serializer.data
-        })
+        return success_response(
+            data=serializer.data,
+            message="Deals retrieved successfully"
+        )
     
 class DealUpdateView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOrgManager]
 
     def patch(self, request, pk):
 
@@ -78,6 +89,8 @@ class DealUpdateView(APIView):
                 "success": False,
                 "message": "Deal not found"
             }, status=404)
+
+        self.check_object_permissions(request, deal)
 
         serializer = DealSerializer(
             deal,
@@ -104,7 +117,7 @@ class DealUpdateView(APIView):
     
 class DealDeleteView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsOrgAdmin]
 
     def delete(self, request, pk):
 
@@ -118,6 +131,8 @@ class DealDeleteView(APIView):
                 "success": False,
                 "message": "Deal not found"
             }, status=404)
+
+        self.check_object_permissions(request, deal)
 
         deal.delete()
 

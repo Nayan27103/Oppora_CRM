@@ -22,6 +22,10 @@ class LeadCreateView(APIView):
 
             lead = serializer.save()
 
+            # Trigger background AI lead scoring (Feature 5)
+            from ai_assistant.tasks import ai_lead_scoring_task
+            ai_lead_scoring_task.delay(lead.id)
+
             return Response({
                 "success": True,
                 "message": "Lead created successfully",
@@ -38,6 +42,7 @@ class LeadListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from common.responses import success_response
 
         status = request.GET.get("status")
 
@@ -57,11 +62,10 @@ class LeadListView(APIView):
             many=True
         )
 
-        return Response({
-            "success": True,
-            "count": leads.count(),
-            "data": serializer.data
-        })
+        return success_response(
+            data=serializer.data,
+            message="Leads retrieved successfully"
+        )
 class LeadUpdateView(APIView):
 
     permission_classes = [IsAuthenticated]
@@ -194,3 +198,21 @@ class LeadBulkUpdateView(APIView):
             "message":
             f"{len(updated_leads)} leads updated"
         })
+
+class LeadStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.core.cache import cache
+        from common.responses import success_response
+        from django.db.models import Count
+
+        cache_key = "lead_stats_data"
+        data = cache.get(cache_key)
+
+        if not data:
+            stats = Lead.objects.values("status").annotate(count=Count("id"))
+            data = {item["status"]: item["count"] for item in stats}
+            cache.set(cache_key, data, timeout=60)
+
+        return success_response(data=data, message="Lead statistics retrieved successfully")

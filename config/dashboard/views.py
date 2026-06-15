@@ -28,99 +28,102 @@ from deals.models import Deal
 from django.db.models import Sum
 
 
+from django.core.cache import cache
+from common.responses import success_response
+
 class DashboardView(APIView):
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        cache_key = "dashboard_data"
+        data = cache.get(cache_key)
+        
+        if not data:
+            total_revenue = (
+                Deal.objects.filter(
+                    stage="CLOSED_WON"
+                ).aggregate(
+                    total=Sum("value")
+                )["total"] or 0
+            )
 
-        total_revenue = (
-            Deal.objects.filter(
-                stage="CLOSED_WON"
-            ).aggregate(
-                total=Sum("value")
-            )["total"] or 0
-        )
+            total_leads = Lead.objects.count()
 
-        total_leads = Lead.objects.count()
+            total_deals = Deal.objects.count()
 
-        total_deals = Deal.objects.count()
+            total_contacts = Contact.objects.count()
 
-        total_contacts = Contact.objects.count()
+            pipeline_value = (
+                Deal.objects.exclude(
+                    stage__in=[
+                        "CLOSED_WON",
+                        "CLOSED_LOST"
+                    ]
+                ).aggregate(
+                    total=Sum("value")
+                )["total"] or 0
+            )
 
-        pipeline_value = (
-            Deal.objects.exclude(
-                stage__in=[
-                    "CLOSED_WON",
-                    "CLOSED_LOST"
-                ]
-            ).aggregate(
-                total=Sum("value")
-            )["total"] or 0
-        )
+            data = {
+                "organizations":
+                    Organization.objects.count(),
 
-        data = {
+                "contacts": total_contacts,
 
-            "organizations":
-                Organization.objects.count(),
+                "leads": total_leads,
 
-            "contacts": total_contacts,
+                "activities":
+                    Activity.objects.count(),
 
-            "leads": total_leads,
+                "deals": total_deals,
 
-            "activities":
-                Activity.objects.count(),
+                "new_leads":
+                    Lead.objects.filter(
+                        status="NEW"
+                    ).count(),
 
-            "deals": total_deals,
+                "contacted_leads":
+                    Lead.objects.filter(
+                        status="CONTACTED"
+                    ).count(),
 
-            "new_leads":
-                Lead.objects.filter(
-                    status="NEW"
-                ).count(),
+                "qualified_leads":
+                    Lead.objects.filter(
+                        status="QUALIFIED"
+                    ).count(),
 
-            "contacted_leads":
-                Lead.objects.filter(
-                    status="CONTACTED"
-                ).count(),
+                "proposal_leads":
+                    Lead.objects.filter(
+                        status="PROPOSAL"
+                    ).count(),
 
-            "qualified_leads":
-                Lead.objects.filter(
-                    status="QUALIFIED"
-                ).count(),
+                "won_leads":
+                    Lead.objects.filter(
+                        status="WON"
+                    ).count(),
 
-            "proposal_leads":
-                Lead.objects.filter(
-                    status="PROPOSAL"
-                ).count(),
+                "lost_leads":
+                    Lead.objects.filter(
+                        status="LOST"
+                    ).count(),
 
-            "won_leads":
-                Lead.objects.filter(
-                    status="WON"
-                ).count(),
+                "completed_tasks":
+                    Activity.objects.filter(
+                        completed=True
+                    ).count(),
 
-            "lost_leads":
-                Lead.objects.filter(
-                    status="LOST"
-                ).count(),
+                "pending_tasks":
+                    Activity.objects.filter(
+                        completed=False
+                    ).count(),
 
-            "completed_tasks":
-                Activity.objects.filter(
-                    completed=True
-                ).count(),
+                "closed_won_revenue":
+                    total_revenue,
 
-            "pending_tasks":
-                Activity.objects.filter(
-                    completed=False
-                ).count(),
+                "pipeline_value":
+                    pipeline_value
+            }
+            cache.set(cache_key, data, timeout=60)
 
-            "closed_won_revenue":
-                total_revenue,
-
-            "pipeline_value":
-                pipeline_value
-        }
-
-        return Response({
-            "success": True,
-            "data": data
-        }) 
+        return success_response(data=data, message="Dashboard statistics retrieved successfully") 

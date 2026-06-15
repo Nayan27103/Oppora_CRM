@@ -17,7 +17,8 @@ class Notification(models.Model):
     message = models.TextField()
 
     is_read = models.BooleanField(
-        default=False
+        default=False,
+        db_index=True
     )
 
     created_at = models.DateTimeField(

@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     "deals",
     "attachments",
     "common",
+    "django_celery_beat",
 ]
 
 MEDIA_URL = "/media/"
@@ -65,18 +66,32 @@ AUTH_USER_MODEL = "accounts.User"
 
 
 CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
-
 CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30 * 60
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
+# Celery Task Routing Configuration (Feature 5)
+CELERY_TASK_ROUTES = {
+    'notifications.tasks.create_notification_task': {'queue': 'notifications'},
+    'notifications.tasks.send_email_task': {'queue': 'emails'},
+    'ai_assistant.tasks.ai_lead_scoring_task': {'queue': 'ai'},
+}
 
-CELERY_BROKER_URL = "memory://"
-CELERY_RESULT_BACKEND = "cache+memory://"
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://127.0.0.1:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
     
 MIDDLEWARE = [
-
     "corsheaders.middleware.CorsMiddleware",
     "common.middleware.RequestTimeMiddleware",
-    # "common.middleware.RequestLoggerMiddleware",
+    "common.middleware.RequestLoggerMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -100,8 +115,11 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS":
         "drf_spectacular.openapi.AutoSchema",
 
-    "DEFAULT_SCHEMA_CLASS":
-        "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_RENDERER_CLASSES": (
+        "common.renderers.GlobalJSONRenderer",
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    ),
+    "EXCEPTION_HANDLER": "common.exceptions.global_exception_handler",
 }
 
 

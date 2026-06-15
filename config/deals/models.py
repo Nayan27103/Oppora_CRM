@@ -27,13 +27,15 @@ class Deal(models.Model):
 
     value = models.DecimalField(
         max_digits=12,
-        decimal_places=2
+        decimal_places=2,
+        db_index=True
     )
 
     stage = models.CharField(
         max_length=50,
         choices=STAGES,
-        default="DISCOVERY"
+        default="DISCOVERY",
+        db_index=True
     )
 
     expected_close_date = models.DateField(

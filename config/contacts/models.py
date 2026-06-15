@@ -20,7 +20,7 @@ class Contact(models.Model):
         blank=True
     )
 
-    email = models.EmailField()
+    email = models.EmailField(db_index=True)
 
     phone = models.CharField(
         max_length=20,
@@ -29,7 +29,8 @@ class Contact(models.Model):
 
     company = models.CharField(
         max_length=255,
-        blank=True
+        blank=True,
+        db_index=True
     )
 
     job_title = models.CharField(
