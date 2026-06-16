@@ -53,6 +53,9 @@ urlpatterns = [
     #finder urls
     path("api/finder/",include("finder.urls")),
 
+    # workflows urls
+    path("api/workflows/",include("workflows.urls")),
+
     # API documentation urls
     path("api/redoc/",SpectacularRedocView.as_view(url_name="schema"),name="redoc"),
     path("api/schema/",SpectacularAPIView.as_view(),name="schema"),

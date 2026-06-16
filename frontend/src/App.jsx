@@ -18,7 +18,8 @@ import {
   Menu,
   X,
   Search,
-  Shield
+  Shield,
+  Cpu
 } from 'lucide-react';
 
 // View Imports
@@ -32,6 +33,7 @@ import AIAssistantView from './components/AIAssistantView';
 import NotificationsView from './components/NotificationsView';
 import FinderPage from './components/FinderPage';
 import AdminPanelView from './components/AdminPanelView';
+import WorkflowsView from './components/WorkflowsView';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -534,6 +536,7 @@ export default function App() {
     { key: 'finder', label: 'Lead Finder', icon: <Search size={20} /> },
     { key: 'deals', label: 'Deals Board', icon: <Briefcase size={20} /> },
     { key: 'activities', label: 'Activities', icon: <CalendarClock size={20} /> },
+    { key: 'workflows', label: 'Automations', icon: <Cpu size={20} /> },
     { key: 'ai-assistant', label: 'AI Copilot', icon: <Sparkles size={20} /> },
     { key: 'notifications', label: 'Notifications', icon: <Bell size={20} />, badge: unreadCount > 0 ? unreadCount : null }
   ];
@@ -574,6 +577,8 @@ export default function App() {
         return <DealsView activeOrg={activeOrg} />;
       case 'activities':
         return <ActivitiesView activeOrg={activeOrg} />;
+      case 'workflows':
+        return <WorkflowsView activeOrg={activeOrg} />;
       case 'ai-assistant':
         return <AIAssistantView />;
       case 'notifications':

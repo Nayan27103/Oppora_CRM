@@ -457,6 +457,39 @@ class ApiClient {
   async getAdminLeads() {
     return await this.request('/api/accounts/admin/leads/');
   }
+
+  // Workflows & Automations
+  async getWorkflows() {
+    return await this.request('/api/workflows/');
+  }
+
+  async createWorkflow(workflowData) {
+    return await this.request('/api/workflows/', {
+      method: 'POST',
+      body: workflowData
+    });
+  }
+
+  async updateWorkflow(id, workflowData) {
+    return await this.request(`/api/workflows/${id}/`, {
+      method: 'PUT',
+      body: workflowData
+    });
+  }
+
+  async deleteWorkflow(id) {
+    return await this.request(`/api/workflows/${id}/`, {
+      method: 'DELETE'
+    });
+  }
+
+  async getWorkflowRuns(workflowId = '') {
+    let path = '/api/workflows/runs/';
+    if (workflowId) {
+      path += `?workflow_id=${workflowId}`;
+    }
+    return await this.request(path);
+  }
 }
 
 export const api = new ApiClient();

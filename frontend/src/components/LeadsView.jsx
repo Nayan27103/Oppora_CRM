@@ -28,6 +28,7 @@ export default function LeadsView({ activeOrg }) {
   const [newLead, setNewLead] = useState({
     contact: '',
     status: 'NEW',
+    category: 'SALES',
     notes: ''
   });
   const [convertData, setConvertData] = useState({
@@ -87,12 +88,13 @@ export default function LeadsView({ activeOrg }) {
       const res = await api.createLead({
         contact: parseInt(newLead.contact),
         status: newLead.status,
+        category: newLead.category,
         notes: newLead.notes,
         score: 0
       });
       if (res.success) {
         setShowCreateModal(false);
-        setNewLead({ contact: '', status: 'NEW', notes: '' });
+        setNewLead({ contact: '', status: 'NEW', category: 'SALES', notes: '' });
         fetchLeads();
       }
     } catch (err) {
@@ -108,6 +110,17 @@ export default function LeadsView({ activeOrg }) {
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to update lead status');
+    }
+  };
+
+  const handleUpdateCategory = async (lead, newCategory) => {
+    try {
+      const res = await api.updateLead(lead.id, { category: newCategory });
+      if (res.success) {
+        fetchLeads();
+      }
+    } catch (err) {
+      alert(err.data?.message || 'Failed to update lead category');
     }
   };
 
@@ -275,11 +288,18 @@ export default function LeadsView({ activeOrg }) {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
                       <span style={{ fontWeight: '700', fontSize: '0.95rem' }}>{lead.contact_name || `Contact #${lead.contact}`}</span>
-                      <span className={`badge ${
-                        lead.status === 'WON' ? 'badge-success' : lead.status === 'LOST' ? 'badge-danger' : 'badge-primary'
-                      }`}>
-                        {lead.status}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                        <span className={`badge ${
+                          lead.status === 'WON' ? 'badge-success' : lead.status === 'LOST' ? 'badge-danger' : 'badge-primary'
+                        }`}>
+                          {lead.status}
+                        </span>
+                        {lead.category && (
+                          <span className="badge" style={{ background: 'hsl(var(--color-primary) / 0.15)', color: 'hsl(var(--color-primary-hover))', fontSize: '0.7rem' }}>
+                            {lead.category}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
@@ -324,8 +344,8 @@ export default function LeadsView({ activeOrg }) {
                 </div>
               </div>
 
-              {/* Status Picker & Info */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem', marginBottom: '1.5rem' }}>
+              {/* Status Picker, Category & Info */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                 <div>
                   <label className="form-label">Update Status</label>
                   <select
@@ -339,6 +359,20 @@ export default function LeadsView({ activeOrg }) {
                     <option value="PROPOSAL">Proposal</option>
                     <option value="WON">Won</option>
                     <option value="LOST">Lost</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="form-label">Category</label>
+                  <select
+                    className="form-select"
+                    value={selectedLead.category || 'SALES'}
+                    onChange={e => handleUpdateCategory(selectedLead, e.target.value)}
+                  >
+                    <option value="IT">IT</option>
+                    <option value="SALES">Sales</option>
+                    <option value="HOSPITAL">Hospital</option>
+                    <option value="RESTAURANTS">Restaurants</option>
+                    <option value="OTHER">Other</option>
                   </select>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
@@ -490,6 +524,21 @@ export default function LeadsView({ activeOrg }) {
                     <option value="CONTACTED">Contacted</option>
                     <option value="QUALIFIED">Qualified</option>
                     <option value="PROPOSAL">Proposal</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Lead Category</label>
+                  <select
+                    className="form-select"
+                    value={newLead.category}
+                    onChange={e => setNewLead({ ...newLead, category: e.target.value })}
+                  >
+                    <option value="IT">IT</option>
+                    <option value="SALES">Sales</option>
+                    <option value="HOSPITAL">Hospital</option>
+                    <option value="RESTAURANTS">Restaurants</option>
+                    <option value="OTHER">Other</option>
                   </select>
                 </div>
 

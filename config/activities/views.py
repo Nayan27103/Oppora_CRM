@@ -58,13 +58,14 @@ class ActivityListView(APIView):
         from common.utils import get_active_org
         active_org = get_active_org(request)
 
+        from django.db.models import F
         if active_org:
             activities = Activity.objects.select_related(
                 "lead",
                 "assigned_to"
                 ).filter(
                 lead__contact__organization=active_org
-            ).distinct()
+            ).order_by(F('due_date').asc(nulls_last=True)).distinct()
         else:
             activities = Activity.objects.none()
 

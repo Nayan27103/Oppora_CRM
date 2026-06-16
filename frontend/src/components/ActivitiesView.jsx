@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api';
-import { Plus, Trash2, Calendar, Phone, Users, CheckSquare, Square, FileText, X } from 'lucide-react';
+import { Plus, Trash2, Calendar, Phone, Users, CheckSquare, Square, FileText, X, Edit } from 'lucide-react';
 
 export default function ActivitiesView({ activeOrg }) {
   const [activities, setActivities] = useState([]);
@@ -9,9 +9,19 @@ export default function ActivitiesView({ activeOrg }) {
 
   // Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState(null);
 
   // Form State
   const [formData, setFormData] = useState({
+    lead: '',
+    activity_type: 'TASK',
+    title: '',
+    description: '',
+    due_date: '',
+    completed: false
+  });
+  const [editFormData, setEditFormData] = useState({
     lead: '',
     activity_type: 'TASK',
     title: '',
@@ -118,6 +128,56 @@ export default function ActivitiesView({ activeOrg }) {
     }
   };
 
+  const formatDateTimeLocal = (isoString) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const tzoffset = date.getTimezoneOffset() * 60000;
+    return (new Date(date.getTime() - tzoffset)).toISOString().slice(0, 16);
+  };
+
+  const startEditActivity = (activity) => {
+    setEditingActivityId(activity.id);
+    setEditFormData({
+      lead: activity.lead?.id || activity.lead || '',
+      activity_type: activity.activity_type,
+      title: activity.title,
+      description: activity.description || '',
+      due_date: activity.due_date ? formatDateTimeLocal(activity.due_date) : '',
+      completed: activity.completed
+    });
+    setFormError('');
+    setShowEditModal(true);
+  };
+
+  const handleUpdateActivity = async (e) => {
+    e.preventDefault();
+    if (!editFormData.lead) {
+      setFormError('Please select an associated lead');
+      return;
+    }
+
+    const payload = {
+      lead: parseInt(editFormData.lead),
+      activity_type: editFormData.activity_type,
+      title: editFormData.title,
+      description: editFormData.description,
+      due_date: editFormData.due_date ? new Date(editFormData.due_date).toISOString() : null,
+      completed: editFormData.completed
+    };
+
+    try {
+      setFormError('');
+      const res = await api.updateActivity(editingActivityId, payload);
+      if (res.success) {
+        setShowEditModal(false);
+        setEditingActivityId(null);
+        fetchActivities();
+      }
+    } catch (err) {
+      setFormError(err.data?.message || JSON.stringify(err.data) || 'Failed to update activity');
+    }
+  };
+
   const getActivityIcon = (type) => {
     switch (type) {
       case 'CALL': return <Phone size={16} style={{ color: 'hsl(var(--color-info))' }} />;
@@ -187,12 +247,22 @@ export default function ActivitiesView({ activeOrg }) {
                       {a.due_date ? new Date(a.due_date).toLocaleString() : '-'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleDelete(a.id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          onClick={() => startEditActivity(a)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-primary-hover))' }}
+                          title="Edit Activity"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(a.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
+                          title="Delete Activity"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -302,6 +372,117 @@ export default function ActivitiesView({ activeOrg }) {
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={leads.length === 0}>Create</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    {/* Edit Activity Modal */}
+      {showEditModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3>Edit Activity</h3>
+              <button onClick={() => {
+                setShowEditModal(false);
+                setEditingActivityId(null);
+              }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateActivity}>
+              <div className="modal-body">
+                {formError && (
+                  <div style={{ background: 'hsl(var(--color-danger) / 0.1)', padding: '10px', borderRadius: 'var(--radius-sm)', color: 'hsl(var(--color-danger))', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                    {formError}
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label className="form-label">Associated Lead</label>
+                  {leads.length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: 'hsl(var(--color-danger))' }}>
+                      No leads available. Please create a lead first.
+                    </p>
+                  ) : (
+                    <select
+                      className="form-select"
+                      value={editFormData.lead}
+                      onChange={e => setEditFormData({ ...editFormData, lead: e.target.value })}
+                      required
+                    >
+                      <option value="">-- Select Lead --</option>
+                      {leads.map(l => (
+                        <option key={l.id} value={l.id}>{l.contact_name || `Lead #${l.id}`}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Activity Type</label>
+                  <select
+                    className="form-select"
+                    value={editFormData.activity_type}
+                    onChange={e => setEditFormData({ ...editFormData, activity_type: e.target.value })}
+                  >
+                    <option value="CALL">Call Log</option>
+                    <option value="MEETING">Meeting</option>
+                    <option value="TASK">Task / To-do</option>
+                    <option value="NOTE">Quick Note</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Title</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editFormData.title}
+                    onChange={e => setEditFormData({ ...editFormData, title: e.target.value })}
+                    required
+                    placeholder="e.g. Schedule demo review"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Description</label>
+                  <textarea
+                    className="form-input"
+                    rows={3}
+                    value={editFormData.description}
+                    onChange={e => setEditFormData({ ...editFormData, description: e.target.value })}
+                    placeholder="Enter details about what needs to happen..."
+                  ></textarea>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Due Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    className="form-input"
+                    value={editFormData.due_date}
+                    onChange={e => setEditFormData({ ...editFormData, due_date: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '1rem' }}>
+                  <input
+                    type="checkbox"
+                    id="edit-completed-chk"
+                    checked={editFormData.completed}
+                    onChange={e => setEditFormData({ ...editFormData, completed: e.target.checked })}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="edit-completed-chk" style={{ cursor: 'pointer', fontWeight: '500' }}>Completed</label>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => {
+                  setShowEditModal(false);
+                  setEditingActivityId(null);
+                }}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={leads.length === 0}>Save Changes</button>
               </div>
             </form>
           </div>

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "finder",
     "common",
     "django_celery_beat",
+    "workflows.apps.WorkflowsConfig",
 ]
 
 MEDIA_URL = "/media/"
@@ -77,6 +78,7 @@ CELERY_TASK_ROUTES = {
     'notifications.tasks.create_notification_task': {'queue': 'notifications'},
     'notifications.tasks.send_email_task': {'queue': 'emails'},
     'ai_assistant.tasks.ai_lead_scoring_task': {'queue': 'ai'},
+    'workflows.tasks.execute_workflow_task': {'queue': 'celery'},
 }
 
 CACHES = {
