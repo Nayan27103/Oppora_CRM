@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     "notifications",
     "deals",
     "attachments",
+    "finder",
     "common",
     "django_celery_beat",
 ]

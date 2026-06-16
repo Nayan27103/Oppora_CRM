@@ -279,5 +279,117 @@ class OrganizationStatsView(APIView):
                 })
             
             cache.set(cache_key, data, timeout=60)
-
+            
         return success_response(data=data, message="Organization statistics retrieved successfully")
+
+
+class OrganizationDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            org = Organization.objects.get(id=pk)
+        except Organization.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Organization not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        if org.owner != request.user:
+            return Response({
+                "success": False,
+                "message": "Only the workspace owner can delete this organization"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        org.delete()
+        return Response({
+            "success": True,
+            "message": "Organization deleted successfully"
+        })
+
+
+class TeamMemberUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            member = TeamMember.objects.get(id=pk)
+        except TeamMember.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Team member not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        is_admin = TeamMember.objects.filter(
+            organization=member.organization,
+            user=request.user,
+            role="ADMIN"
+        ).exists()
+        if not is_admin:
+            return Response({
+                "success": False,
+                "message": "Only organization admins can update member roles"
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if member.user == member.organization.owner:
+            return Response({
+                "success": False,
+                "message": "Cannot change the role of the workspace owner"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = TeamMemberSerializer(
+            member,
+            data=request.data,
+            partial=True
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response({
+                "success": True,
+                "message": "Member role updated successfully",
+                "data": serializer.data
+            })
+
+        return Response({
+            "success": False,
+            "errors": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TeamMemberDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            member = TeamMember.objects.get(id=pk)
+        except TeamMember.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Team member not found"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        is_admin = TeamMember.objects.filter(
+            organization=member.organization,
+            user=request.user,
+            role="ADMIN"
+        ).exists()
+        is_self = member.user == request.user
+
+        if not (is_admin or is_self):
+            return Response({
+                "success": False,
+                "message": "Permission denied. Only admins can remove members, or members can leave themselves."
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        if member.user == member.organization.owner:
+            return Response({
+                "success": False,
+                "message": "Cannot remove the workspace owner from the organization"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        member.delete()
+        return Response({
+            "success": True,
+            "message": "Member removed successfully"
+        })

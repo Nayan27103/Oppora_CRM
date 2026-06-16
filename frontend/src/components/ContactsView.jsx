@@ -10,6 +10,8 @@ export default function ContactsView({ activeOrg }) {
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
+  const [pageSize, setPageSize] = useState(10);
+
   // Modals
   const [showFormModal, setShowFormModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -34,12 +36,12 @@ export default function ContactsView({ activeOrg }) {
     if (activeOrg) {
       fetchContacts();
     }
-  }, [activeOrg, page, search]);
+  }, [activeOrg, page, search, pageSize]);
 
   const fetchContacts = async () => {
     try {
       setLoading(true);
-      const res = await api.getContacts(search, page);
+      const res = await api.getContacts(search, page, pageSize);
       if (res.success) {
         setContacts(res.data);
         setTotalPages(res.total_pages || 1);
@@ -174,7 +176,7 @@ export default function ContactsView({ activeOrg }) {
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="glass-panel" style={{ padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div className="glass-panel" style={{ padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flexGrow: 1 }}>
           <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
           <input
@@ -188,6 +190,23 @@ export default function ContactsView({ activeOrg }) {
               setPage(1);
             }}
           />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '150px' }}>
+          <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', whiteSpace: 'nowrap' }}>Per Page:</span>
+          <select
+            className="form-select"
+            style={{ padding: '0.5rem 0.75rem', width: '85px', borderRadius: 'var(--radius-md)' }}
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
         </div>
       </div>
 

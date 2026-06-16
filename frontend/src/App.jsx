@@ -16,7 +16,8 @@ import {
   Phone,
   Building,
   Menu,
-  X
+  X,
+  Search
 } from 'lucide-react';
 
 // View Imports
@@ -28,6 +29,7 @@ import DealsView from './components/DealsView';
 import ActivitiesView from './components/ActivitiesView';
 import AIAssistantView from './components/AIAssistantView';
 import NotificationsView from './components/NotificationsView';
+import FinderPage from './components/FinderPage';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -71,6 +73,16 @@ export default function App() {
     } else {
       checkAuth();
     }
+
+    const handleNavigate = (e) => {
+      if (e.detail) {
+        setActiveView(e.detail);
+      }
+    };
+    window.addEventListener('navigate', handleNavigate);
+    return () => {
+      window.removeEventListener('navigate', handleNavigate);
+    };
   }, []);
 
   useEffect(() => {
@@ -517,6 +529,7 @@ export default function App() {
     { key: 'organizations', label: 'Organizations', icon: <Building2 size={20} /> },
     { key: 'contacts', label: 'Contacts', icon: <UserSquare2 size={20} /> },
     { key: 'leads', label: 'Leads', icon: <Network size={20} /> },
+    { key: 'finder', label: 'Lead Finder', icon: <Search size={20} /> },
     { key: 'deals', label: 'Deals Board', icon: <Briefcase size={20} /> },
     { key: 'activities', label: 'Activities', icon: <CalendarClock size={20} /> },
     { key: 'ai-assistant', label: 'AI Copilot', icon: <Sparkles size={20} /> },
@@ -544,11 +557,13 @@ export default function App() {
       case 'dashboard':
         return <DashboardView onNavigate={(view) => setActiveView(view)} />;
       case 'organizations':
-        return <OrganizationsView activeOrg={activeOrg} setActiveOrg={setActiveOrg} refreshAllData={refreshAllData} />;
+        return <OrganizationsView user={user} activeOrg={activeOrg} setActiveOrg={setActiveOrg} refreshAllData={refreshAllData} />;
       case 'contacts':
         return <ContactsView activeOrg={activeOrg} />;
       case 'leads':
         return <LeadsView activeOrg={activeOrg} />;
+      case 'finder':
+        return <FinderPage onNavigate={(view) => setActiveView(view)} />;
       case 'deals':
         return <DealsView activeOrg={activeOrg} />;
       case 'activities':

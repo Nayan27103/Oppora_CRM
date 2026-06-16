@@ -152,8 +152,8 @@ class ApiClient {
   }
 
   // Contacts
-  async getContacts(search = '', page = 1) {
-    let path = `/api/contacts/?page=${page}`;
+  async getContacts(search = '', page = 1, pageSize = 10) {
+    let path = `/api/contacts/?page=${page}&page_size=${pageSize}`;
     if (search) {
       path += `&search=${encodeURIComponent(search)}`;
     }
@@ -378,6 +378,49 @@ class ApiClient {
     return await this.request('/api/accounts/change-password/', {
       method: 'POST',
       body: { old_password: oldPassword, new_password: newPassword }
+    });
+  }
+
+  // Lead & Company Finder
+  async startFinderSearch(payload) {
+    return await this.request('/api/finder/search/', {
+      method: 'POST',
+      body: payload
+    });
+  }
+
+  async getFinderStatus(queryId) {
+    return await this.request(`/api/finder/search/${queryId}/status/`);
+  }
+
+  async getFinderHistory() {
+    return await this.request('/api/finder/history/');
+  }
+
+  // Organizations & Teams CRUD
+  async updateOrganization(id, name) {
+    return await this.request(`/api/organizations/${id}/update/`, {
+      method: 'PATCH',
+      body: { name }
+    });
+  }
+
+  async deleteOrganization(id) {
+    return await this.request(`/api/organizations/${id}/delete/`, {
+      method: 'DELETE'
+    });
+  }
+
+  async updateTeamMember(memberId, role) {
+    return await this.request(`/api/organizations/members/${memberId}/update/`, {
+      method: 'PATCH',
+      body: { role }
+    });
+  }
+
+  async deleteTeamMember(memberId) {
+    return await this.request(`/api/organizations/members/${memberId}/delete/`, {
+      method: 'DELETE'
     });
   }
 }
