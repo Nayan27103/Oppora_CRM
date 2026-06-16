@@ -55,13 +55,18 @@ class ActivityListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from common.utils import get_active_org
+        active_org = get_active_org(request)
 
-        activities = Activity.objects.select_related(
-            "lead",
-            "assigned_to"
-            ).filter(
-            lead__contact__organization__members__user=request.user
-        ).distinct()
+        if active_org:
+            activities = Activity.objects.select_related(
+                "lead",
+                "assigned_to"
+                ).filter(
+                lead__contact__organization=active_org
+            ).distinct()
+        else:
+            activities = Activity.objects.none()
 
         serializer = ActivitySerializer(
             activities,

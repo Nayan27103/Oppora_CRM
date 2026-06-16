@@ -193,16 +193,21 @@ class AIChatView(APIView):
                 "message": "Message is required"
             }, status=400)
 
-        qualified_leads = Lead.objects.filter(
-            contact__organization__members__user=request.user,
-            status="QUALIFIED"
-        ).distinct()
+        from common.utils import get_active_org
+        active_org = get_active_org(request)
 
-        deals = Deal.objects.filter(
-            lead__contact__organization__members__user=request.user
-        ).distinct()
+        if active_org:
+            qualified_leads = Lead.objects.filter(
+                contact__organization=active_org,
+                status="QUALIFIED"
+            ).distinct()
 
-        deals = Deal.objects.all()
+            deals = Deal.objects.filter(
+                lead__contact__organization=active_org
+            ).distinct()
+        else:
+            qualified_leads = Lead.objects.none()
+            deals = Deal.objects.none()
 
         lead_data = []
 

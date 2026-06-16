@@ -43,14 +43,19 @@ class LeadListView(APIView):
 
     def get(self, request):
         from common.responses import success_response
+        from common.utils import get_active_org
 
+        active_org = get_active_org(request)
         status = request.GET.get("status")
 
-        leads = Lead.objects.select_related(
-            "contact"
-        ).filter(
-            contact__organization__members__user=request.user
-        ).distinct()
+        if active_org:
+            leads = Lead.objects.select_related(
+                "contact"
+            ).filter(
+                contact__organization=active_org
+            ).distinct()
+        else:
+            leads = Lead.objects.none()
 
         if status:
             leads = leads.filter(
@@ -206,12 +211,20 @@ class LeadStatsView(APIView):
         from django.core.cache import cache
         from common.responses import success_response
         from django.db.models import Count
+        from common.utils import get_active_org
 
-        cache_key = "lead_stats_data"
+        active_org = get_active_org(request)
+        active_org_id = active_org.id if active_org else 0
+        cache_key = f"lead_stats_data_{request.user.id}_{active_org_id}"
         data = cache.get(cache_key)
 
         if not data:
-            stats = Lead.objects.values("status").annotate(count=Count("id"))
+            if active_org:
+                stats = Lead.objects.filter(
+                    contact__organization=active_org
+                ).values("status").annotate(count=Count("id"))
+            else:
+                stats = []
             data = {item["status"]: item["count"] for item in stats}
             cache.set(cache_key, data, timeout=60)
 

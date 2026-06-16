@@ -31,6 +31,12 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
+    // Inject Active Workspace ID
+    const activeOrgId = localStorage.getItem('active_org_id');
+    if (activeOrgId) {
+      headers['X-Workspace-Id'] = activeOrgId;
+    }
+
     if (options.body && !(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
       options.body = JSON.stringify(options.body);
@@ -382,6 +388,13 @@ class ApiClient {
   }
 
   // Lead & Company Finder
+  async searchCompanies(payload) {
+    return await this.request('/api/finder/companies/', {
+      method: 'POST',
+      body: payload
+    });
+  }
+
   async startFinderSearch(payload) {
     return await this.request('/api/finder/search/', {
       method: 'POST',
@@ -422,6 +435,27 @@ class ApiClient {
     return await this.request(`/api/organizations/members/${memberId}/delete/`, {
       method: 'DELETE'
     });
+  }
+
+  // Admin Panel APIs
+  async getAdminStats() {
+    return await this.request('/api/accounts/admin/stats/');
+  }
+
+  async getAdminUsers() {
+    return await this.request('/api/accounts/admin/users/');
+  }
+
+  async getAdminOrganizations() {
+    return await this.request('/api/accounts/admin/organizations/');
+  }
+
+  async getAdminContacts() {
+    return await this.request('/api/accounts/admin/contacts/');
+  }
+
+  async getAdminLeads() {
+    return await this.request('/api/accounts/admin/leads/');
   }
 }
 

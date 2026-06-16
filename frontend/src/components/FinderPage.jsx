@@ -8,8 +8,6 @@ import {
   CardContent, 
   Typography, 
   TextField, 
-  ToggleButtonGroup, 
-  ToggleButton, 
   Button, 
   LinearProgress, 
   CircularProgress,
@@ -25,7 +23,14 @@ import {
   IconButton, 
   Snackbar, 
   Alert,
-  Tooltip
+  Tooltip,
+  Tabs,
+  Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Avatar
 } from '@mui/material';
 import { 
   Search, 
@@ -34,9 +39,11 @@ import {
   RotateCw, 
   AlertCircle, 
   CheckCircle2, 
-  Play, 
-  HelpCircle,
-  Layers
+  Layers,
+  Globe,
+  MapPin,
+  Users,
+  Eye
 } from 'lucide-react';
 
 // MD3-inspired dark mode theme
@@ -86,32 +93,6 @@ const md3Theme = createTheme({
         },
       },
     },
-    MuiToggleButtonGroup: {
-      styleOverrides: {
-        root: {
-          borderRadius: 100, // MD3 segmented buttons
-          border: '1px solid rgba(204, 196, 206, 0.4)',
-          overflow: 'hidden',
-        },
-      },
-    },
-    MuiToggleButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 0,
-          border: 'none',
-          textTransform: 'none',
-          padding: '8px 24px',
-          '&.Mui-selected': {
-            backgroundColor: '#D0BCFF',
-            color: '#381E72',
-            '&:hover': {
-              backgroundColor: '#E8DEF8',
-            },
-          },
-        },
-      },
-    },
     MuiTextField: {
       styleOverrides: {
         root: {
@@ -135,29 +116,50 @@ const md3Theme = createTheme({
 });
 
 export default function FinderPage({ onNavigate }) {
-  // Page states
-  const [domain, setDomain] = useState('');
-  const [jobTitle, setJobTitle] = useState('');
-  const [location, setLocation] = useState('');
-  const [searchType, setSearchType] = useState('both'); // company | people | both
-  
-  // State management
-  const [searchState, setSearchState] = useState('idle'); // idle | submitting | polling | done | failed
-  const [currentQueryId, setCurrentQueryId] = useState(null);
-  const [statusData, setStatusData] = useState(null);
+  // Required spec states
+  const [activeTab, setActiveTab] = useState('companies'); // companies | people | both
+  const [companyResults, setCompanyResults] = useState([]);
+  const [companyLoading, setCompanyLoading] = useState(false);
+  const [domain, setDomain] = useState(''); // shared between tabs
+  const [searchStatus, setSearchStatus] = useState(null); // pending | running | done | failed
+  const [queryId, setQueryId] = useState(null);
+  const [importedCounts, setImportedCounts] = useState({ contacts: 0, companies: 0 });
   const [history, setHistory] = useState([]);
-  
+  const pollingRef = useRef(null);
+
+  // Additional form fields states
+  const [companiesIndustry, setCompaniesIndustry] = useState('');
+  const [companiesLocation, setCompaniesLocation] = useState('');
+  const [companiesKeywords, setCompaniesKeywords] = useState('');
+
+  const [peopleJobTitle, setPeopleJobTitle] = useState('');
+  const [peopleLocation, setPeopleLocation] = useState('');
+
+  const [bothIndustry, setBothIndustry] = useState('');
+  const [bothJobTitle, setBothJobTitle] = useState('');
+  const [bothLocation, setBothLocation] = useState('');
+
+  // Results & Org states
+  const [peopleResults, setPeopleResults] = useState([]);
+  const [currentOrgId, setCurrentOrgId] = useState(null);
+  const [selectedContact, setSelectedContact] = useState(null);
+
+  // Re-run auto-submit refs
+  const autoSubmitCompanyRef = useRef(false);
+  const autoSubmitPeopleRef = useRef(false);
+  const autoSubmitBothRef = useRef(false);
+
   // Feedback states
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  
-  // Ref for polling interval cleanup
-  const pollIntervalRef = useRef(null);
+  const [successSnackbarOpen, setSuccessSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
 
-  // Load history on mount
+  // Load history & fallback organization on mount
   useEffect(() => {
     fetchHistory();
-    // Load Roboto font if it isn't loaded
+    fetchCurrentOrg();
+
     if (!document.getElementById('roboto-font-link')) {
       const link = document.createElement('link');
       link.id = 'roboto-font-link';
@@ -165,156 +167,300 @@ export default function FinderPage({ onNavigate }) {
       link.href = 'https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap';
       document.head.appendChild(link);
     }
+
     return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, []);
+
+  // Polling logic triggered when queryId changes
+  useEffect(() => {
+    if (!queryId) return;
+
+    if (pollingRef.current) clearInterval(pollingRef.current);
+
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await api.getFinderStatus(queryId);
+        if (res.success) {
+          const status = res.data.status;
+          setSearchStatus(status);
+          setImportedCounts({
+            contacts: res.data.contacts_imported || 0,
+            companies: res.data.companies_imported || 0
+          });
+
+          if (status === 'done') {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+            
+            // Notification
+            setSnackbarMessage('Import complete!');
+            setSuccessSnackbarOpen(true);
+
+            // Fetch newly imported contacts from database
+            fetchNewlyImportedContacts(domain);
+            
+            // Refresh history
+            fetchHistory();
+          } else if (status === 'failed') {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+            setErrorMessage(res.data.error_message || 'Search failed. Please try again.');
+            setSnackbarOpen(true);
+            fetchHistory();
+          }
+        }
+      } catch (err) {
+        console.error('Polling error:', err);
+        setSearchStatus('failed');
+        setErrorMessage(err.data?.message || 'Error checking search status.');
+        setSnackbarOpen(true);
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    }, 3000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [queryId]);
+
+  // Re-run auto-submit trigger
+  useEffect(() => {
+    if (activeTab === 'companies' && autoSubmitCompanyRef.current) {
+      autoSubmitCompanyRef.current = false;
+      handleCompanySearchSubmit();
+    }
+    if (activeTab === 'people' && autoSubmitPeopleRef.current && domain) {
+      autoSubmitPeopleRef.current = false;
+      handlePeopleSearchSubmit();
+    }
+    if (activeTab === 'both' && autoSubmitBothRef.current && domain) {
+      autoSubmitBothRef.current = false;
+      handleBothSearchSubmit();
+    }
+  }, [activeTab, domain, companiesIndustry, companiesLocation, companiesKeywords, peopleJobTitle, peopleLocation, bothIndustry, bothJobTitle, bothLocation]);
 
   const fetchHistory = async () => {
     try {
       const res = await api.getFinderHistory();
       if (res.success) {
-        setHistory(res.data || []);
+        setHistory(Array.isArray(res.data) ? res.data : []);
       }
     } catch (err) {
       console.error('Error fetching history:', err);
     }
   };
 
-  // Poll status endpoint every 3 seconds
-  const startPolling = (queryId) => {
-    if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    setSearchState('polling');
-    
-    pollIntervalRef.current = setInterval(async () => {
-      try {
-        const res = await api.getFinderStatus(queryId);
-        if (res.success) {
-          const data = res.data;
-          setStatusData(data);
-          
-          if (data.status === 'done') {
-            setSearchState('done');
-            clearInterval(pollIntervalRef.current);
-            fetchHistory(); // Refresh history
-          } else if (data.status === 'failed') {
-            setSearchState('failed');
-            setErrorMessage(data.error_message || 'The finder task failed on the server.');
-            setSnackbarOpen(true);
-            clearInterval(pollIntervalRef.current);
-            fetchHistory(); // Refresh history
-          }
-        }
-      } catch (err) {
-        console.error('Polling error:', err);
-        setSearchState('failed');
-        setErrorMessage(err.data?.message || 'Error occurred while checking search status.');
-        setSnackbarOpen(true);
-        clearInterval(pollIntervalRef.current);
+  const fetchCurrentOrg = async () => {
+    try {
+      const res = await api.getOrganizations();
+      if (res.success && res.data && res.data.length > 0) {
+        setCurrentOrgId(res.data[0].id);
       }
-    }, 3000);
+    } catch (err) {
+      console.error('Error fetching user organization:', err);
+    }
   };
 
-  // Submit search query
-  const handleFindLeads = async (e) => {
+  const fetchNewlyImportedContacts = async (searchVal) => {
+    try {
+      const res = await api.getContacts(searchVal, 1, 50);
+      if (res.success) {
+        setPeopleResults(Array.isArray(res.data) ? res.data : []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch newly imported contacts:', err);
+    }
+  };
+
+  // Submit company search
+  const handleCompanySearchSubmit = async (e) => {
+    if (e) e.preventDefault();
+    setCompanyLoading(true);
+    setCompanyResults([]);
+    
+    try {
+      const res = await api.searchCompanies({
+        industry: (companiesIndustry || '').trim(),
+        location: (companiesLocation || '').trim(),
+        keywords: (companiesKeywords || '').trim()
+      });
+      if (res.success) {
+        setCompanyResults(Array.isArray(res.data) ? res.data : []);
+        if (res.data && res.data.length > 0) {
+          setSnackbarMessage('Companies found!');
+          setSuccessSnackbarOpen(true);
+        } else {
+          setErrorMessage('No companies found. Try different keywords.');
+          setSnackbarOpen(true);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(err.data?.message || 'Search failed. Please try again.');
+      setSnackbarOpen(true);
+    } finally {
+      setCompanyLoading(false);
+    }
+  };
+
+  // Submit people search
+  const handlePeopleSearchSubmit = async (e) => {
     if (e) e.preventDefault();
     if (!domain.trim()) return;
 
-    setSearchState('submitting');
-    setStatusData(null);
-    
-    const payload = {
-      domain: domain.trim(),
-      job_title: jobTitle.trim(),
-      location: location.trim(),
-      search_type: searchType
-    };
+    setSearchStatus('pending');
+    setQueryId(null);
+    setPeopleResults([]);
+    setImportedCounts({ contacts: 0, companies: 0 });
 
     try {
-      const res = await api.startFinderSearch(payload);
+      const res = await api.startFinderSearch({
+        domain: domain.trim(),
+        job_title: (peopleJobTitle || '').trim(),
+        location: (peopleLocation || '').trim(),
+        search_type: 'people'
+      });
+
       if (res.success && res.data?.query_id) {
-        const queryId = res.data.query_id;
-        setCurrentQueryId(queryId);
-        startPolling(queryId);
+        setQueryId(res.data.query_id);
       } else {
-        throw new Error('Could not retrieve search query ID');
+        throw new Error('Failed to retrieve search query ID');
       }
     } catch (err) {
-      setSearchState('failed');
-      setErrorMessage(err.data?.message || err.message || 'Failed to start lead finder search.');
+      setSearchStatus('failed');
+      setErrorMessage(err.data?.message || err.message || 'Search failed. Please try again.');
       setSnackbarOpen(true);
     }
   };
 
-  // Re-run handler from history row
-  const handleReRun = (item) => {
-    setDomain(item.domain || '');
-    setJobTitle(item.job_title || '');
-    setLocation(item.location || '');
-    setSearchType(item.search_type || 'both');
-    
-    // Trigger submit right after setting state. Need to pass updated payload.
-    setSearchState('submitting');
-    setStatusData(null);
-    
-    const payload = {
-      domain: item.domain || '',
-      job_title: item.job_title || '',
-      location: item.location || '',
-      search_type: item.search_type || 'both'
-    };
+  // Submit both search
+  const handleBothSearchSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!domain.trim()) return;
 
-    api.startFinderSearch(payload)
-      .then(res => {
-        if (res.success && res.data?.query_id) {
-          const queryId = res.data.query_id;
-          setCurrentQueryId(queryId);
-          startPolling(queryId);
-        } else {
-          throw new Error('Could not retrieve search query ID');
-        }
-      })
-      .catch(err => {
-        setSearchState('failed');
-        setErrorMessage(err.data?.message || err.message || 'Failed to start lead finder search.');
-        setSnackbarOpen(true);
+    setSearchStatus('pending');
+    setQueryId(null);
+    setPeopleResults([]);
+    setImportedCounts({ contacts: 0, companies: 0 });
+
+    try {
+      const res = await api.startFinderSearch({
+        domain: domain.trim(),
+        industry: (bothIndustry || '').trim(),
+        job_title: (bothJobTitle || '').trim(),
+        location: (bothLocation || '').trim(),
+        search_type: 'both'
       });
-  };
 
-  // Select a past search query to display results on the right
-  const handleSelectHistoryRow = (row) => {
-    setDomain(row.domain || '');
-    setJobTitle(row.job_title || '');
-    setLocation(row.location || '');
-    setSearchType(row.search_type || 'both');
-    
-    setCurrentQueryId(row.id);
-    setStatusData(row);
-    
-    if (row.status === 'done') {
-      setSearchState('done');
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    } else if (row.status === 'failed') {
-      setSearchState('failed');
-      setErrorMessage(row.error_message || 'The finder task failed on the server.');
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
-    } else if (row.status === 'running' || row.status === 'pending') {
-      startPolling(row.id);
+      if (res.success && res.data?.query_id) {
+        setQueryId(res.data.query_id);
+      } else {
+        throw new Error('Failed to retrieve search query ID');
+      }
+    } catch (err) {
+      setSearchStatus('failed');
+      setErrorMessage(err.data?.message || err.message || 'Search failed. Please try again.');
+      setSnackbarOpen(true);
     }
   };
 
-  // Navigation handlers
-  const navigateTo = (destination) => {
-    // Fire event for global window listener in App.jsx
-    window.dispatchEvent(new CustomEvent('navigate', { detail: destination }));
-    // Call prop callback if provided
-    if (onNavigate) {
-      onNavigate(destination);
+  // Action: Add company to CRM
+  const handleAddCompanyToCRM = async (company) => {
+    try {
+      const res = await api.createOrganization(company.name);
+      if (res.success) {
+        setCompanyResults(prev => prev.map(c => c.domain === company.domain ? { ...c, imported: true } : c));
+        setSnackbarMessage(`"${company.name}" added to CRM!`);
+        setSuccessSnackbarOpen(true);
+        window.dispatchEvent(new CustomEvent('organization_created'));
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(err.data?.message || 'Failed to add organization to CRM.');
+      setSnackbarOpen(true);
     }
   };
 
-  // Helper to format search type labels
+  // Action: Switch to People tab, autofill and trigger search immediately
+  const handleFindPeople = (companyDomain) => {
+    setDomain(companyDomain);
+    setActiveTab('people');
+    autoSubmitPeopleRef.current = true;
+  };
+
+  // Action: Re-run search from history
+  const handleReRun = (item) => {
+    if (item.search_type === 'company') {
+      setCompaniesIndustry(item.industry || '');
+      setCompaniesLocation(item.location || '');
+      setCompaniesKeywords(item.domain || ''); // Keywords fallback
+      setActiveTab('companies');
+      autoSubmitCompanyRef.current = true;
+    } else if (item.search_type === 'people') {
+      setDomain(item.domain || '');
+      setPeopleJobTitle(item.job_title || '');
+      setPeopleLocation(item.location || '');
+      setActiveTab('people');
+      autoSubmitPeopleRef.current = true;
+    } else if (item.search_type === 'both') {
+      setDomain(item.domain || '');
+      setBothIndustry(item.industry || '');
+      setBothJobTitle(item.job_title || '');
+      setBothLocation(item.location || '');
+      setActiveTab('both');
+      autoSubmitBothRef.current = true;
+    }
+  };
+
+  // Helper: Get avatar initials
+  const getInitials = (contact) => {
+    if (!contact) return 'C';
+    const first = contact.first_name ? contact.first_name[0] : '';
+    const last = contact.last_name ? contact.last_name[0] : '';
+    return (first + last).toUpperCase() || 'C';
+  };
+
+  // Helper: Deterministic Company details for Both mode
+  const getCompanyDetailsForBoth = () => {
+    const safeDomain = domain || '';
+    const cleanDomain = safeDomain.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0] || 'company.com';
+    const companyPrefix = cleanDomain.split('.')[0] || 'company';
+    const capitalizedCompany = companyPrefix ? companyPrefix.charAt(0).toUpperCase() + companyPrefix.slice(1) : 'Company';
+    return {
+      name: `${capitalizedCompany} Inc.`,
+      domain: cleanDomain,
+      industry: bothIndustry || 'Technology',
+      location: bothLocation || 'Remote / United States',
+      employeeCount: '500 - 1,000 employees'
+    };
+  };
+
+  // Helper: Safe date formatter to avoid runtime RangeError on invalid strings
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'N/A';
+      return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return 'N/A';
+    }
+  };
+
+  // Helper: Format search type labels
   const formatSearchType = (type) => {
+    if (!type) return 'N/A';
     switch (type) {
       case 'company': return 'Companies Only';
       case 'people': return 'People Only';
@@ -323,7 +469,7 @@ export default function FinderPage({ onNavigate }) {
     }
   };
 
-  // Helper to get chip colors
+  // Helpers for Status Chip Config
   const getStatusChipConfig = (status) => {
     switch (status) {
       case 'pending':
@@ -335,7 +481,18 @@ export default function FinderPage({ onNavigate }) {
       case 'failed':
         return { label: 'Failed', color: 'error', variant: 'filled' };
       default:
-        return { label: status, color: 'default', variant: 'outlined' };
+        return { label: status || 'Pending', color: 'default', variant: 'outlined' };
+    }
+  };
+
+  // Helper to map status variables to strings
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'pending': return 'Queuing search...';
+      case 'running': return 'Searching Hunter.io database...';
+      case 'done': return 'Import complete!';
+      case 'failed': return 'Search failed. Please try again.';
+      default: return 'Starting lead finder...';
     }
   };
 
@@ -349,306 +506,503 @@ export default function FinderPage({ onNavigate }) {
             <Layers size={28} style={{ color: '#D0BCFF' }} /> Lead & Company Finder
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Enrich your CRM database instantly. Provide a domain name to crawl and discover matching corporate records and decision-makers.
+            Enrich your CRM database instantly. Search for companies to find their domain, or lookup emails and decision-makers.
           </Typography>
         </Box>
 
+        {/* Tab switcher */}
+        <Box sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <Tabs
+            value={activeTab}
+            onChange={(e, val) => val && setActiveTab(val)}
+            textColor="primary"
+            indicatorColor="primary"
+            sx={{
+              '& .MuiTab-root': {
+                textTransform: 'none',
+                fontWeight: 600,
+                fontSize: '0.95rem',
+                color: 'text.secondary',
+                '&.Mui-selected': {
+                  color: '#D0BCFF',
+                }
+              },
+              '& .MuiTabs-indicator': {
+                backgroundColor: '#D0BCFF',
+                height: 3,
+                borderRadius: '3px 3px 0 0',
+              }
+            }}
+          >
+            <Tab label="Companies" value="companies" />
+            <Tab label="People" value="people" />
+            <Tab label="Both" value="both" />
+          </Tabs>
+        </Box>
+
+        {/* Tab content panels */}
         <Grid container spacing={4}>
-          {/* Left Column: Search Form */}
-          <Grid item xs={12} md={7}>
-            <Card sx={{ 
-              backgroundColor: 'background.paper', 
-              borderRadius: '28px', // MD3 extra-large shape
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              boxShadow: 'none',
-              padding: 2
-            }}>
-              <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <Typography variant="h6" color="text.primary">
-                  Search Criteria
-                </Typography>
-                
-                <form onSubmit={handleFindLeads} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  {/* Domain input */}
-                  <Box>
-                    <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>
-                      Target Domain (Required)
-                    </Typography>
-                    <TextField
+          <Grid item xs={12} md={4}>
+            
+            {/* TAB 1 Form: Companies */}
+            {activeTab === 'companies' && (
+              <Card sx={{ backgroundColor: 'background.paper', borderRadius: '28px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 2 }}>
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <Typography variant="h6" color="text.primary">Search Companies</Typography>
+                  <form onSubmit={handleCompanySearchSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Industry</Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="e.g. fintech, saas"
+                        value={companiesIndustry}
+                        onChange={(e) => setCompaniesIndustry(e.target.value)}
+                        disabled={companyLoading}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Location</Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="e.g. San Francisco, India"
+                        value={companiesLocation}
+                        onChange={(e) => setCompaniesLocation(e.target.value)}
+                        disabled={companyLoading}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Keywords</Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="e.g. payment startup, AI tools"
+                        value={companiesKeywords}
+                        onChange={(e) => setCompaniesKeywords(e.target.value)}
+                        disabled={companyLoading}
+                      />
+                    </Box>
+                    <Button
+                      type="submit"
+                      variant="contained"
                       fullWidth
-                      required
-                      placeholder="e.g. stripe.com"
-                      value={domain}
-                      onChange={(e) => setDomain(e.target.value)}
-                      disabled={searchState === 'submitting' || searchState === 'polling'}
-                      helperText="Enter domain without https:// e.g. stripe.com"
-                      FormHelperTextProps={{ sx: { color: 'text.secondary', mt: 0.5 } }}
-                    />
-                  </Box>
-
-                  {/* Job Title input */}
-                  <Box>
-                    <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>
-                      Filter by Job Title (Optional)
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      placeholder="e.g. engineer, founder"
-                      value={jobTitle}
-                      onChange={(e) => setJobTitle(e.target.value)}
-                      disabled={searchState === 'submitting' || searchState === 'polling'}
-                      helperText="Target specific job designations"
-                      FormHelperTextProps={{ sx: { color: 'text.secondary', mt: 0.5 } }}
-                    />
-                  </Box>
-
-                  {/* Location input */}
-                  <Box>
-                    <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>
-                      Filter by Location (Optional)
-                    </Typography>
-                    <TextField
-                      fullWidth
-                      placeholder="e.g. San Francisco, London"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      disabled={searchState === 'submitting' || searchState === 'polling'}
-                      helperText="Limit contacts to a specific city or region"
-                      FormHelperTextProps={{ sx: { color: 'text.secondary', mt: 0.5 } }}
-                    />
-                  </Box>
-
-                  {/* Search Type Toggle Buttons */}
-                  <Box>
-                    <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>
-                      Search Focus
-                    </Typography>
-                    <ToggleButtonGroup
-                      value={searchType}
-                      exclusive
-                      onChange={(e, val) => val && setSearchType(val)}
-                      disabled={searchState === 'submitting' || searchState === 'polling'}
-                      fullWidth
+                      color="primary"
+                      disabled={companyLoading}
+                      startIcon={companyLoading ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
+                      sx={{ py: 1.5 }}
                     >
-                      <ToggleButton value="company">Companies</ToggleButton>
-                      <ToggleButton value="people">People</ToggleButton>
-                      <ToggleButton value="both">Both</ToggleButton>
-                    </ToggleButtonGroup>
-                  </Box>
+                      Search Companies
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
 
-                  {/* Submit Button */}
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    fullWidth
-                    color="primary"
-                    disabled={!domain.trim() || searchState === 'submitting' || searchState === 'polling'}
-                    startIcon={searchState === 'submitting' || searchState === 'polling' ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
-                    sx={{ mt: 1, py: 1.5, fontSize: '0.95rem' }}
-                  >
-                    Find Leads
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+            {/* TAB 2 Form: People */}
+            {activeTab === 'people' && (
+              <Card sx={{ backgroundColor: 'background.paper', borderRadius: '28px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 2 }}>
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <Typography variant="h6" color="text.primary">Find People</Typography>
+                  <form onSubmit={handlePeopleSearchSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Target Domain (Required)</Typography>
+                      <TextField
+                        fullWidth
+                        required
+                        placeholder="e.g. stripe.com"
+                        value={domain}
+                        onChange={(e) => setDomain(e.target.value)}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                        helperText="Provide company domain to search people"
+                        FormHelperTextProps={{ sx: { color: 'text.secondary' } }}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Job Title Filter (Optional)</Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="e.g. engineer, founder"
+                        value={peopleJobTitle}
+                        onChange={(e) => setPeopleJobTitle(e.target.value)}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Location Filter (Optional)</Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="e.g. London, San Francisco"
+                        value={peopleLocation}
+                        onChange={(e) => setPeopleLocation(e.target.value)}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                      />
+                    </Box>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      fullWidth
+                      color="primary"
+                      disabled={!domain.trim() || searchStatus === 'pending' || searchStatus === 'running'}
+                      startIcon={(searchStatus === 'pending' || searchStatus === 'running') ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
+                      sx={{ py: 1.5 }}
+                    >
+                      Find People
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* TAB 3 Form: Both */}
+            {activeTab === 'both' && (
+              <Card sx={{ backgroundColor: 'background.paper', borderRadius: '28px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 2 }}>
+                <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <Typography variant="h6" color="text.primary">Search Everything</Typography>
+                  <form onSubmit={handleBothSearchSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Target Domain (Required)</Typography>
+                      <TextField
+                        fullWidth
+                        required
+                        placeholder="e.g. stripe.com"
+                        value={domain}
+                        onChange={(e) => setDomain(e.target.value)}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Industry (Optional)</Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="e.g. fintech, ecommerce"
+                        value={bothIndustry}
+                        onChange={(e) => setBothIndustry(e.target.value)}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Job Title (Optional)</Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="e.g. developer, founder"
+                        value={bothJobTitle}
+                        onChange={(e) => setBothJobTitle(e.target.value)}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                      />
+                    </Box>
+                    <Box>
+                      <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Location (Optional)</Typography>
+                      <TextField
+                        fullWidth
+                        placeholder="e.g. India, Boston"
+                        value={bothLocation}
+                        onChange={(e) => setBothLocation(e.target.value)}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                      />
+                    </Box>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      fullWidth
+                      color="primary"
+                      disabled={!domain.trim() || searchStatus === 'pending' || searchStatus === 'running'}
+                      startIcon={(searchStatus === 'pending' || searchStatus === 'running') ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
+                      sx={{ py: 1.5 }}
+                    >
+                      Search Everything
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
+
           </Grid>
 
-          {/* Right Column: Status Card & Results Summary */}
-          <Grid item xs={12} md={5}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              
-              {/* Live Status Card */}
-              {searchState !== 'idle' && (
+          {/* Right Column: Dynamic Loader / Results Panel */}
+          <Grid item xs={12} md={8}>
+            
+            {/* Welcoming state */}
+            {activeTab === 'companies' && companyResults.length === 0 && !companyLoading && (
+              <Card sx={{ height: '100%', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: 4, textAlign: 'center', gap: 2 }}>
+                <Building2 size={48} style={{ color: '#D0BCFF', opacity: 0.8 }} />
+                <Typography variant="h6">Discover Target Companies</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '400px' }}>
+                  Enter an industry, location, or keywords on the left to query matching companies and extract their domains.
+                </Typography>
+              </Card>
+            )}
+
+            {(activeTab === 'people' || activeTab === 'both') && !searchStatus && (
+              <Card sx={{ height: '100%', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: 4, textAlign: 'center', gap: 2 }}>
+                <Users size={48} style={{ color: '#D0BCFF', opacity: 0.8 }} />
+                <Typography variant="h6">Look Up Contacts</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '400px' }}>
+                  Provide a domain and filter criteria to crawl decision-makers and import them as contacts automatically.
+                </Typography>
+              </Card>
+            )}
+
+            {/* Loading / Polling Progress bar */}
+            {(companyLoading || searchStatus === 'pending' || searchStatus === 'running') && (
+              <Card sx={{ height: '100%', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: 4, gap: 3 }}>
+                <CircularProgress size={48} thickness={4} color="primary" />
+                <Box sx={{ textAlign: 'center' }}>
+                  <Typography variant="subtitle1" fontWeight="600" color="text.primary">
+                    {companyLoading ? 'Searching companies...' : getStatusText(searchStatus)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {companyLoading ? 'Querying DuckDuckGo scraper...' : 'Scanning databases and Hunter.io records...'}
+                  </Typography>
+                </Box>
+                <Box sx={{ width: '100%', maxWidth: '360px' }}>
+                  <LinearProgress color="primary" sx={{ height: 6, borderRadius: 3 }} />
+                </Box>
+              </Card>
+            )}
+
+            {/* Error States */}
+            {searchStatus === 'failed' && (
+              <Card sx={{ height: '100%', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: 4, textAlign: 'center', gap: 2 }}>
+                <AlertCircle size={48} style={{ color: '#F2B8B5' }} />
+                <Typography variant="h6">Search failed. Please try again.</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {errorMessage || 'The background search process encountered an error.'}
+                </Typography>
+                <Button variant="outlined" color="primary" size="small" onClick={() => setSearchStatus(null)}>
+                  Dismiss
+                </Button>
+              </Card>
+            )}
+
+            {/* TAB 1 Results: Companies Grid */}
+            {activeTab === 'companies' && companyResults.length > 0 && !companyLoading && (
+              <Grid container spacing={2}>
+                {companyResults.map((company, index) => (
+                  <Grid item xs={12} sm={6} md={4} key={index}>
+                    <Card sx={{
+                      backgroundColor: 'background.paper',
+                      borderRadius: '16px',
+                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      padding: 2,
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: 2
+                    }}>
+                      <Box>
+                        <Typography variant="subtitle1" fontWeight="700" color="text.primary">
+                          {company.name}
+                        </Typography>
+                        <Typography variant="caption" color="primary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1.5 }}>
+                          <Globe size={12} /> {company.domain}
+                        </Typography>
+                        <Typography 
+                          variant="body2" 
+                          color="text.secondary" 
+                          sx={{ 
+                            display: '-webkit-box', 
+                            WebkitLineClamp: 2, 
+                            WebkitBoxOrient: 'vertical', 
+                            overflow: 'hidden', 
+                            textOverflow: 'ellipsis',
+                            fontSize: '0.8rem',
+                            mb: 2
+                          }}
+                        >
+                          {company.description || 'No description available for this result.'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          {company.industry && (
+                            <Chip label={company.industry} size="small" variant="outlined" sx={{ borderRadius: '6px', fontSize: '0.7rem' }} />
+                          )}
+                          {company.location && (
+                            <Chip label={company.location} size="small" variant="outlined" sx={{ borderRadius: '6px', fontSize: '0.7rem' }} />
+                          )}
+                        </Box>
+                      </Box>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button 
+                          variant="contained" 
+                          size="small" 
+                          fullWidth 
+                          disabled={company.imported}
+                          onClick={() => handleAddCompanyToCRM(company)}
+                          sx={{ fontSize: '0.75rem', py: 0.75, borderRadius: '8px' }}
+                        >
+                          {company.imported ? 'Added' : 'Add to CRM'}
+                        </Button>
+                        <Button 
+                          variant="outlined" 
+                          size="small" 
+                          fullWidth 
+                          onClick={() => handleFindPeople(company.domain)}
+                          sx={{ fontSize: '0.75rem', py: 0.75, borderRadius: '8px' }}
+                        >
+                          Find People
+                        </Button>
+                      </Box>
+                    </Card>
+                  </Grid>
+                ))}
+              </Grid>
+            )}
+
+            {/* TAB 2 Results: People Table */}
+            {activeTab === 'people' && searchStatus === 'done' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Chip
+                    label={`${importedCounts.contacts} contacts imported`}
+                    color="success"
+                    size="medium"
+                    sx={{ fontWeight: 600, borderRadius: '8px' }}
+                  />
+                </Box>
+                <TableContainer component={Paper} sx={{ backgroundColor: 'background.paper', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', overflow: 'hidden' }}>
+                  <Table size="small">
+                    <TableHead sx={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+                      <TableRow>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Avatar</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Name</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Email</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Job Title</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Company</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600, textAlign: 'center' }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {peopleResults.length > 0 ? (
+                        peopleResults.map((person) => (
+                          <TableRow key={person.id} sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                            <TableCell sx={{ borderBottom: 'none' }}>
+                              <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', backgroundColor: '#381E72', color: '#D0BCFF', fontWeight: 600 }}>
+                                {getInitials(person)}
+                              </Avatar>
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 500, borderBottom: 'none' }}>
+                              {person.first_name} {person.last_name}
+                            </TableCell>
+                            <TableCell sx={{ color: 'text.secondary', borderBottom: 'none' }}>{person.email}</TableCell>
+                            <TableCell sx={{ borderBottom: 'none' }}>{person.job_title}</TableCell>
+                            <TableCell sx={{ borderBottom: 'none' }}>{person.company}</TableCell>
+                            <TableCell sx={{ borderBottom: 'none', textAlign: 'center' }}>
+                              <IconButton color="primary" onClick={() => setSelectedContact(person)} sx={{ '&:hover': { backgroundColor: 'rgba(208, 188, 255, 0.12)' } }}>
+                                <Eye size={16} />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                            No people found at this domain.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
+
+            {/* TAB 3 Results: Both Info (Company Card + People Table) */}
+            {activeTab === 'both' && searchStatus === 'done' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <Box>
+                  <Chip
+                    label={`${importedCounts.contacts} contacts + ${importedCounts.companies} companies imported`}
+                    color="success"
+                    size="medium"
+                    sx={{ fontWeight: 600, borderRadius: '8px' }}
+                  />
+                </Box>
+                
+                {/* Company Info section */}
                 <Card sx={{
                   backgroundColor: 'background.paper',
-                  borderRadius: '16px', // MD3 large shape
+                  borderRadius: '16px',
                   border: '1px solid rgba(255, 255, 255, 0.08)',
-                  boxShadow: 'none',
-                  padding: 2,
-                  animation: 'slideUp 300ms cubic-bezier(0.05, 0.7, 0.1, 1.0) forwards',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  '@keyframes slideUp': {
-                    'from': { opacity: 0, transform: 'translateY(16px)' },
-                    'to': { opacity: 1, transform: 'translateY(0)' }
-                  }
+                  padding: 3
                 }}>
-                  <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="subtitle1" fontWeight="600" color="text.primary">
-                        Discovery Status
-                      </Typography>
-                      {/* Status Chip with Pulse animation for running state */}
-                      {(() => {
-                        const config = getStatusChipConfig(statusData?.status || 'pending');
-                        const isRunning = statusData?.status === 'running' || searchState === 'submitting' || (searchState === 'polling' && statusData?.status !== 'done' && statusData?.status !== 'failed');
-                        return (
-                          <Chip
-                            label={isRunning ? 'Running' : config.label}
-                            color={isRunning ? 'primary' : config.color}
-                            variant={config.variant}
-                            sx={{
-                              fontWeight: 600,
-                              borderRadius: '8px',
-                              ...(isRunning && {
-                                animation: 'pulseOutline 2s infinite',
-                                '@keyframes pulseOutline': {
-                                  '0%': { boxShadow: '0 0 0 0 rgba(208, 188, 255, 0.5)' },
-                                  '70%': { boxShadow: '0 0 0 6px rgba(208, 188, 255, 0)' },
-                                  '100%': { boxShadow: '0 0 0 0 rgba(208, 188, 255, 0)' }
-                                }
-                              })
-                            }}
-                          />
-                        );
-                      })()}
-                    </Box>
-
-                    {/* Progress Indicator */}
-                    {(searchState === 'submitting' || searchState === 'polling' || statusData?.status === 'pending' || statusData?.status === 'running') && (
-                      <Box sx={{ width: '100%', my: 0.5 }}>
-                        <LinearProgress color="primary" sx={{ height: 6, borderRadius: 3 }} />
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
-                          Crawling website pages, checking social links, and importing leads...
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {/* Done State Details */}
-                    {searchState === 'done' && (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'success.main' }}>
-                          <CheckCircle2 size={20} />
-                          <Typography variant="body2" fontWeight="500">
-                            Search crawl completed successfully!
-                          </Typography>
+                  {(() => {
+                    const company = getCompanyDetailsForBoth();
+                    return (
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                          <Box sx={{ width: 44, height: 44, borderRadius: '10px', backgroundColor: 'rgba(208, 188, 255, 0.12)', display: 'flex', alignItems: 'center', justify: 'center', color: '#D0BCFF', padding: '10px' }}>
+                            <Building2 size={24} />
+                          </Box>
+                          <Box>
+                            <Typography variant="subtitle1" fontWeight="700">{company.name}</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <Globe size={12} /> {company.domain}
+                            </Typography>
+                          </Box>
                         </Box>
-                        
                         <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-                          <Chip 
-                            label={`${statusData?.contacts_imported || 0} Contacts Imported`} 
-                            size="medium"
-                            sx={{ 
-                              backgroundColor: 'rgba(195, 231, 178, 0.15)', 
-                              color: '#C3E7B2',
-                              fontWeight: 500,
-                              borderRadius: '8px'
-                            }} 
-                          />
-                          <Chip 
-                            label={`${statusData?.companies_imported || 0} Companies Imported`} 
-                            size="medium"
-                            sx={{ 
-                              backgroundColor: 'rgba(208, 188, 255, 0.15)', 
-                              color: '#D0BCFF',
-                              fontWeight: 500,
-                              borderRadius: '8px'
-                            }} 
-                          />
+                          <Chip label={company.industry} size="small" variant="outlined" />
+                          <Chip label={company.location} size="small" variant="outlined" />
+                          <Chip label={company.employeeCount} size="small" variant="outlined" />
                         </Box>
                       </Box>
-                    )}
-
-                    {/* Failed State Details */}
-                    {searchState === 'failed' && (
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
-                          <AlertCircle size={20} />
-                          <Typography variant="body2" fontWeight="500">
-                            Discovery process aborted
-                          </Typography>
-                        </Box>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', p: 1, backgroundColor: 'rgba(242, 184, 181, 0.08)', borderRadius: '8px', border: '1px solid rgba(242, 184, 181, 0.2)', wordBreak: 'break-word' }}>
-                          {errorMessage}
-                        </Typography>
-                      </Box>
-                    )}
-                  </CardContent>
+                    );
+                  })()}
                 </Card>
-              )}
 
-              {/* Results Summary cards side-by-side (rendered when status is done) */}
-              {searchState === 'done' && (
-                <Grid container spacing={2} sx={{ animation: 'fadeIn 300ms ease-out' }}>
-                  {/* Contacts Imported Stat */}
-                  <Grid item xs={6}>
-                    <Card sx={{
-                      backgroundColor: 'rgba(208, 188, 255, 0.08)', // MD3 surface container highest
-                      borderRadius: '16px',
-                      border: '1px solid rgba(208, 188, 255, 0.15)',
-                      boxShadow: 'none',
-                      height: '100%',
-                      textAlign: 'center',
-                      p: 2
-                    }}>
-                      <CardContent sx={{ p: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                        <Box sx={{ p: 1, borderRadius: '50%', backgroundColor: 'rgba(208, 188, 255, 0.15)', color: '#D0BCFF' }}>
-                          <UserPlus size={24} />
-                        </Box>
-                        <Typography variant="h3" color="text.primary" sx={{ fontWeight: 700, my: 1 }}>
-                          {statusData?.contacts_imported || 0}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontWeight: 500 }}>
-                          Contacts Imported
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          fullWidth
-                          color="primary"
-                          onClick={() => navigateTo('contacts')}
-                          sx={{ py: 0.75, borderRadius: '8px' }}
-                        >
-                          View Contacts
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </Grid>
+                {/* People Table Section */}
+                <TableContainer component={Paper} sx={{ backgroundColor: 'background.paper', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', overflow: 'hidden' }}>
+                  <Table size="small">
+                    <TableHead sx={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+                      <TableRow>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Avatar</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Name</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Email</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Job Title</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Company</TableCell>
+                        <TableCell sx={{ color: 'text.secondary', fontWeight: 600, textAlign: 'center' }}>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {peopleResults.length > 0 ? (
+                        peopleResults.map((person) => (
+                          <TableRow key={person.id} sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                            <TableCell sx={{ borderBottom: 'none' }}>
+                              <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', backgroundColor: '#381E72', color: '#D0BCFF', fontWeight: 600 }}>
+                                {getInitials(person)}
+                              </Avatar>
+                            </TableCell>
+                            <TableCell sx={{ fontWeight: 500, borderBottom: 'none' }}>
+                              {person.first_name} {person.last_name}
+                            </TableCell>
+                            <TableCell sx={{ color: 'text.secondary', borderBottom: 'none' }}>{person.email}</TableCell>
+                            <TableCell sx={{ borderBottom: 'none' }}>{person.job_title}</TableCell>
+                            <TableCell sx={{ borderBottom: 'none' }}>{person.company}</TableCell>
+                            <TableCell sx={{ borderBottom: 'none', textAlign: 'center' }}>
+                              <IconButton color="primary" onClick={() => setSelectedContact(person)} sx={{ '&:hover': { backgroundColor: 'rgba(208, 188, 255, 0.12)' } }}>
+                                <Eye size={16} />
+                              </IconButton>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                            No people found at this domain.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            )}
 
-                  {/* Companies Imported Stat */}
-                  <Grid item xs={6}>
-                    <Card sx={{
-                      backgroundColor: 'rgba(204, 196, 206, 0.08)', // MD3 surface container highest
-                      borderRadius: '16px',
-                      border: '1px solid rgba(204, 196, 206, 0.15)',
-                      boxShadow: 'none',
-                      height: '100%',
-                      textAlign: 'center',
-                      p: 2
-                    }}>
-                      <CardContent sx={{ p: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                        <Box sx={{ p: 1, borderRadius: '50%', backgroundColor: 'rgba(204, 196, 206, 0.15)', color: '#CCC2DC' }}>
-                          <Building2 size={24} />
-                        </Box>
-                        <Typography variant="h3" color="text.primary" sx={{ fontWeight: 700, my: 1 }}>
-                          {statusData?.companies_imported || 0}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, fontWeight: 500 }}>
-                          Companies Imported
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          fullWidth
-                          color="secondary"
-                          onClick={() => navigateTo('organizations')}
-                          sx={{ py: 0.75, borderRadius: '8px', color: '#CCC2DC', borderColor: 'rgba(204, 196, 206, 0.4)' }}
-                        >
-                          View Companies
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
-              )}
-            </Box>
           </Grid>
         </Grid>
 
-        {/* Search History Section */}
+        {/* Recent Searches Section */}
         <Box sx={{ mt: 2 }}>
           <Typography variant="h6" color="text.primary" gutterBottom sx={{ mb: 2 }}>
-            Search History
+            Recent Searches
           </Typography>
 
           <TableContainer component={Paper} sx={{
@@ -662,13 +1016,13 @@ export default function FinderPage({ onNavigate }) {
               <Table sx={{ minWidth: 650 }}>
                 <TableHead sx={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
                   <TableRow>
-                    <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>Domain</TableCell>
-                    <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>Type</TableCell>
+                    <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>Domain / Search</TableCell>
+                    <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>Mode</TableCell>
                     <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>Status</TableCell>
                     <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', textAlign: 'center' }}>Contacts</TableCell>
                     <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', textAlign: 'center' }}>Companies</TableCell>
                     <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>Date</TableCell>
-                    <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', width: '80px', textAlign: 'center' }}>Action</TableCell>
+                    <TableCell sx={{ color: 'text.secondary', fontWeight: 600, borderBottom: '1px solid rgba(255, 255, 255, 0.08)', width: '80px', textAlign: 'center' }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -677,22 +1031,24 @@ export default function FinderPage({ onNavigate }) {
                     return (
                       <TableRow 
                         key={row.id} 
-                        onClick={() => handleSelectHistoryRow(row)}
                         sx={{ 
-                          cursor: 'pointer',
                           borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
                           transition: 'background-color 0.2s ease',
                           '&:hover': { 
-                            backgroundColor: 'rgba(208, 188, 255, 0.08) !important' // MD3 State layer: 8% primary on hover
+                            backgroundColor: 'rgba(208, 188, 255, 0.04) !important'
                           } 
                         }}
                       >
                         <TableCell sx={{ fontWeight: 500, color: 'text.primary', borderBottom: 'none' }}>
                           <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                            <Typography variant="body2" fontWeight="500">{row.domain}</Typography>
-                            {row.job_title && (
+                            <Typography variant="body2" fontWeight="500">{row.domain || 'Keyword Criteria Search'}</Typography>
+                            {(row.job_title || row.location || row.industry) && (
                               <Typography variant="caption" color="text.secondary">
-                                Title: {row.job_title} {row.location && `| Loc: ${row.location}`}
+                                {[
+                                  row.job_title && `Title: ${row.job_title}`,
+                                  row.industry && `Industry: ${row.industry}`,
+                                  row.location && `Loc: ${row.location}`
+                                ].filter(Boolean).join(' | ')}
                               </Typography>
                             )}
                           </Box>
@@ -710,22 +1066,15 @@ export default function FinderPage({ onNavigate }) {
                         <TableCell sx={{ color: 'text.primary', fontWeight: 600, textAlign: 'center', borderBottom: 'none' }}>{row.contacts_imported}</TableCell>
                         <TableCell sx={{ color: 'text.primary', fontWeight: 600, textAlign: 'center', borderBottom: 'none' }}>{row.companies_imported}</TableCell>
                         <TableCell sx={{ color: 'text.secondary', borderBottom: 'none' }}>
-                          {new Date(row.created_at).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {formatDate(row.created_at)}
                         </TableCell>
                         <TableCell sx={{ borderBottom: 'none', textAlign: 'center' }}>
                           <Tooltip title="Re-run Search">
                             <IconButton 
                               color="primary" 
-                              onClick={(e) => { e.stopPropagation(); handleReRun(row); }}
-                              disabled={searchState === 'submitting' || searchState === 'polling'}
-                              sx={{ 
-                                '&:hover': { backgroundColor: 'rgba(208, 188, 255, 0.15)' }
-                              }}
+                              onClick={() => handleReRun(row)}
+                              disabled={companyLoading || searchStatus === 'pending' || searchStatus === 'running'}
+                              sx={{ '&:hover': { backgroundColor: 'rgba(208, 188, 255, 0.15)' } }}
                             >
                               <RotateCw size={16} />
                             </IconButton>
@@ -737,41 +1086,81 @@ export default function FinderPage({ onNavigate }) {
                 </TableBody>
               </Table>
             ) : (
-              // Empty State Illustration Placeholder
-              <Box sx={{ 
-                p: 6, 
-                display: 'flex', 
-                flexDirection: 'column', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                gap: 2,
-                textAlign: 'center'
-              }}>
-                <Box sx={{ 
-                  width: 64, 
-                  height: 64, 
-                  borderRadius: '50%', 
-                  backgroundColor: 'rgba(255, 255, 255, 0.03)', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  color: 'text.secondary',
-                  mb: 1
-                }}>
+              <Box sx={{ p: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2, textAlign: 'center' }}>
+                <Box sx={{ width: 64, height: 64, borderRadius: '50%', backgroundColor: 'rgba(255, 255, 255, 0.03)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', mb: 1 }}>
                   <Search size={32} />
                 </Box>
-                <Typography variant="subtitle1" fontWeight="600" color="text.primary">
-                  No searches yet
-                </Typography>
+                <Typography variant="subtitle1" fontWeight="600" color="text.primary">No searches yet</Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '400px' }}>
-                  Try searching for a company domain above to find high-quality leads, contacts, and organization details instantly.
+                  No searches yet. Try searching above.
                 </Typography>
               </Box>
             )}
           </TableContainer>
         </Box>
 
-        {/* MD3 error alert Snackbar */}
+        {/* Detailed Contact View Dialog */}
+        <Dialog open={!!selectedContact} onClose={() => setSelectedContact(null)} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: '24px', backgroundColor: '#121622', backgroundImage: 'none', border: '1px solid rgba(255, 255, 255, 0.08)' } }}>
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 2, pt: 3, pb: 1 }}>
+            <Avatar sx={{ width: 48, height: 48, fontSize: '1.2rem', backgroundColor: '#381E72', color: '#D0BCFF', fontWeight: 600 }}>
+              {selectedContact ? getInitials(selectedContact) : 'C'}
+            </Avatar>
+            <Box>
+              <Typography variant="h6" fontWeight="700">
+                {selectedContact?.first_name} {selectedContact?.last_name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Discovered Lead Detail View
+              </Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent sx={{ py: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', pb: 1.5 }}>
+                <Typography variant="caption" color="text.secondary" display="block">Email Address</Typography>
+                <Typography variant="body1" fontWeight="500">{selectedContact?.email || 'N/A'}</Typography>
+              </Box>
+              <Box sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', pb: 1.5 }}>
+                <Typography variant="caption" color="text.secondary" display="block">Job Title</Typography>
+                <Typography variant="body1" fontWeight="500">{selectedContact?.job_title || 'N/A'}</Typography>
+              </Box>
+              <Box sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)', pb: 1.5 }}>
+                <Typography variant="caption" color="text.secondary" display="block">Company</Typography>
+                <Typography variant="body1" fontWeight="500">{selectedContact?.company || 'N/A'}</Typography>
+              </Box>
+              <Box sx={{ pb: 0.5 }}>
+                <Typography variant="caption" color="text.secondary" display="block">Date Added / Crawled</Typography>
+                <Typography variant="body1" fontWeight="500">
+                  {formatDate(selectedContact?.created_at)}
+                </Typography>
+              </Box>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 3 }}>
+            <Button onClick={() => setSelectedContact(null)} variant="contained" color="secondary" sx={{ borderRadius: '100px' }}>
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Success Alert Snackbar */}
+        <Snackbar
+          open={successSnackbarOpen}
+          autoHideDuration={4000}
+          onClose={() => setSuccessSnackbarOpen(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={() => setSuccessSnackbarOpen(false)} 
+            severity="success" 
+            variant="filled"
+            sx={{ width: '100%', borderRadius: '12px', boxShadow: 'none', backgroundColor: '#2e7d32' }}
+          >
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
+
+        {/* Error Alert Snackbar */}
         <Snackbar
           open={snackbarOpen}
           autoHideDuration={6000}
@@ -782,11 +1171,6 @@ export default function FinderPage({ onNavigate }) {
             onClose={() => setSnackbarOpen(false)} 
             severity="error" 
             variant="filled"
-            action={
-              <Button color="inherit" size="small" onClick={() => { setSnackbarOpen(false); handleFindLeads(); }}>
-                Retry
-              </Button>
-            }
             sx={{ width: '100%', borderRadius: '12px', boxShadow: 'none' }}
           >
             {errorMessage}

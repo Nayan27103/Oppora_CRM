@@ -55,13 +55,18 @@ class DealListView(APIView):
 
     def get(self, request):
         from common.responses import success_response
+        from common.utils import get_active_org
+        active_org = get_active_org(request)
 
-        deals = Deal.objects.select_related(
-            "lead",
-            "lead__contact"
-            ).filter(
-            lead__contact__organization__members__user=request.user
-            ).distinct()
+        if active_org:
+            deals = Deal.objects.select_related(
+                "lead",
+                "lead__contact"
+                ).filter(
+                lead__contact__organization=active_org
+                ).distinct()
+        else:
+            deals = Deal.objects.none()
 
         serializer = DealSerializer(
             deals,

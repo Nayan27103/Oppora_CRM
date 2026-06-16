@@ -17,7 +17,8 @@ import {
   Building,
   Menu,
   X,
-  Search
+  Search,
+  Shield
 } from 'lucide-react';
 
 // View Imports
@@ -30,6 +31,7 @@ import ActivitiesView from './components/ActivitiesView';
 import AIAssistantView from './components/AIAssistantView';
 import NotificationsView from './components/NotificationsView';
 import FinderPage from './components/FinderPage';
+import AdminPanelView from './components/AdminPanelView';
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -536,9 +538,13 @@ export default function App() {
     { key: 'notifications', label: 'Notifications', icon: <Bell size={20} />, badge: unreadCount > 0 ? unreadCount : null }
   ];
 
+  if (user && (user.is_superuser || user.is_staff)) {
+    menuItems.push({ key: 'admin-panel', label: 'Admin Panel', icon: <Shield size={20} style={{ color: 'hsl(var(--color-warning))' }} /> });
+  }
+
   const renderActiveView = () => {
-    // If no workspace is selected and they aren't on organizations view, nudge them
-    if (!activeOrg && activeView !== 'organizations') {
+    // If no workspace is selected and they aren't on organizations view or admin panel, nudge them
+    if (!activeOrg && activeView !== 'organizations' && activeView !== 'admin-panel') {
       return (
         <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', maxWidth: '600px', margin: '4rem auto' }}>
           <Building size={48} style={{ color: 'hsl(var(--color-primary))', marginBottom: '1.25rem', opacity: 0.8 }} />
@@ -555,7 +561,7 @@ export default function App() {
 
     switch (activeView) {
       case 'dashboard':
-        return <DashboardView onNavigate={(view) => setActiveView(view)} />;
+        return <DashboardView activeOrg={activeOrg} onNavigate={(view) => setActiveView(view)} />;
       case 'organizations':
         return <OrganizationsView user={user} activeOrg={activeOrg} setActiveOrg={setActiveOrg} refreshAllData={refreshAllData} />;
       case 'contacts':
@@ -572,8 +578,10 @@ export default function App() {
         return <AIAssistantView />;
       case 'notifications':
         return <NotificationsView />;
+      case 'admin-panel':
+        return (user.is_superuser || user.is_staff) ? <AdminPanelView /> : <DashboardView activeOrg={activeOrg} onNavigate={(view) => setActiveView(view)} />;
       default:
-        return <DashboardView onNavigate={(view) => setActiveView(view)} />;
+        return <DashboardView activeOrg={activeOrg} onNavigate={(view) => setActiveView(view)} />;
     }
   };
 

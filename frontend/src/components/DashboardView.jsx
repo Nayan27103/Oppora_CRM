@@ -2,14 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 import { DollarSign, Users, Target, Activity, CheckCircle, Clock } from 'lucide-react';
 
-export default function DashboardView({ onNavigate }) {
+export default function DashboardView({ activeOrg, onNavigate }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchStats();
-  }, []);
+  }, [activeOrg]);
 
   const fetchStats = async () => {
     try {

@@ -10,6 +10,7 @@ from common.responses import success_response, error_response
 from .models import SearchQuery
 from .serializers import SearchQueryCreateSerializer, SearchQueryResultSerializer
 from .tasks import run_finder_and_import
+from .services import WebScraperService
 
 
 class StartSearchView(APIView):
@@ -68,3 +69,21 @@ class SearchHistoryView(APIView):
         queries = SearchQuery.objects.filter(user=request.user)[:20]
         serializer = SearchQueryResultSerializer(queries, many=True)
         return success_response(data=serializer.data)
+
+
+class CompanySearchView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        industry = request.data.get('industry', '')
+        location = request.data.get('location', '')
+        keywords = request.data.get('keywords', '')
+
+        scraper = WebScraperService()
+        companies = scraper.search_companies_by_criteria(
+            industry=industry,
+            location=location,
+            keywords=keywords,
+        )
+        return success_response(data=companies)

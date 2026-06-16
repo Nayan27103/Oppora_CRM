@@ -49,12 +49,17 @@ class ContactListView(APIView):
     ]
 
     def get(self, request):
+        from common.utils import get_active_org
+        active_org = get_active_org(request)
 
         search = request.GET.get("search")
 
-        contacts = Contact.objects.filter(
-            organization__members__user=request.user
-        ).distinct()
+        if active_org:
+            contacts = Contact.objects.filter(
+                organization=active_org
+            ).distinct()
+        else:
+            contacts = Contact.objects.none()
 
         if search:
 

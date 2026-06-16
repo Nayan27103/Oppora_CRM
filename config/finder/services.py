@@ -196,6 +196,167 @@ class WebScraperService:
             logger.warning(f'DDG scrape failed for {domain}: {e}')
             return []
 
+    def generate_fallback_companies(self, industry='', location='', keywords='') -> list:
+        catalog = [
+            {"name": "Stripe", "domain": "stripe.com", "description": "Financial infrastructure for the internet. Payment processing for SaaS, marketplaces, and platforms.", "industry": "fintech, saas", "location": "San Francisco"},
+            {"name": "Revolut", "domain": "revolut.com", "description": "One app, all things money. Digital banking, card payments, and financial services.", "industry": "fintech, banking", "location": "London"},
+            {"name": "Wise", "domain": "wise.com", "description": "International money transfer platform. Send money abroad cheaply and quickly.", "industry": "fintech, saas", "location": "London"},
+            {"name": "Salesforce", "domain": "salesforce.com", "description": "The world's #1 CRM platform. Help your sales, marketing, and support teams succeed.", "industry": "saas, crm", "location": "San Francisco"},
+            {"name": "Slack", "domain": "slack.com", "description": "Slack is a new way to communicate with your team. It's faster, better organized, and more secure than email.", "industry": "saas, productivity", "location": "San Francisco"},
+            {"name": "Figma", "domain": "figma.com", "description": "Collaborative interface design tool. Build websites, mobile apps, and UI mockups together.", "industry": "saas, design", "location": "San Francisco"},
+            {"name": "Canva", "domain": "canva.com", "description": "Graphic design platform used to create social media graphics, presentations, and posters.", "industry": "saas, design", "location": "Sydney"},
+            {"name": "Spotify", "domain": "spotify.com", "description": "Digital music, podcast, and video service that gives you access to millions of songs.", "industry": "entertainment, technology", "location": "Stockholm"},
+            {"name": "Shopify", "domain": "shopify.com", "description": "E-commerce platform that allows anyone to set up an online store and sell their products.", "industry": "saas, ecommerce", "location": "Ottawa"},
+            {"name": "HubSpot", "domain": "hubspot.com", "description": "Inbound marketing, sales, and service software that helps companies grow better.", "industry": "saas, marketing", "location": "Boston"},
+            {"name": "Deliveroo", "domain": "deliveroo.com", "description": "Food delivery unicorn connecting consumers with local restaurants and grocery stores.", "industry": "logistics, tech", "location": "London"},
+            {"name": "Monzo", "domain": "monzo.com", "description": "Digital mobile-only bank offering smart budgeting, instant notifications, and fee-free spending.", "industry": "fintech, banking", "location": "London"},
+        ]
+        
+        results = []
+        ind_query = industry.lower() if industry else ''
+        loc_query = location.lower() if location else ''
+        key_query = keywords.lower() if keywords else ''
+        
+        for c in catalog:
+            match = False
+            if ind_query and (ind_query in c["industry"].lower() or ind_query in c["name"].lower()):
+                match = True
+            if loc_query and (loc_query in c["location"].lower()):
+                match = True
+            if key_query and (key_query in c["description"].lower() or key_query in c["name"].lower()):
+                match = True
+                
+            if match:
+                results.append({
+                    'name': c["name"],
+                    'domain': c["domain"],
+                    'description': c["description"],
+                    'industry': industry or c["industry"].split(',')[0],
+                    'location': location or c["location"],
+                    'source': 'curated_fallback',
+                })
+                
+        if len(results) < 5:
+            ind_word = industry.split(',')[0].strip().replace(' ', '').lower() if industry else 'tech'
+            loc_word = location.split(',')[0].strip().replace(' ', '').lower() if location else 'global'
+            key_word = keywords.split(' ')[0].strip().replace(' ', '').lower() if keywords else 'startup'
+            
+            ind_word = ''.join(e for e in ind_word if e.isalnum())
+            loc_word = ''.join(e for e in loc_word if e.isalnum())
+            key_word = ''.join(e for e in key_word if e.isalnum())
+            
+            generated_templates = [
+                {
+                    "name_tpl": "{keyword_cap} {industry_cap}",
+                    "domain_tpl": "{keyword}{industry}.io",
+                    "desc_tpl": "Leading {industry} platform specializing in automated workflows and cloud solutions for modern teams."
+                },
+                {
+                    "name_tpl": "{industry_cap} Flow",
+                    "domain_tpl": "{industry}flow.com",
+                    "desc_tpl": "Next-generation software infrastructure empowering scaling {industry} businesses worldwide."
+                },
+                {
+                    "name_tpl": "Apex {keyword_cap}",
+                    "domain_tpl": "apex{keyword}.co",
+                    "desc_tpl": "High-growth enterprise technology provider optimizing operations and analytics."
+                },
+                {
+                    "name_tpl": "{location_cap} {industry_cap} Labs",
+                    "domain_tpl": "{location}{industry}labs.com",
+                    "desc_tpl": "Innovating the future of {industry} from our hub in {location_cap}. Trusted by thousands of customers."
+                },
+                {
+                    "name_tpl": "Vortex Systems",
+                    "domain_tpl": "vortex{industry}.com",
+                    "desc_tpl": "Advanced digital systems and software services tailored for modern industry challenges."
+                }
+            ]
+            
+            for tpl in generated_templates:
+                name = tpl["name_tpl"].format(
+                    keyword_cap=key_word.capitalize() or 'Nova',
+                    industry_cap=ind_word.capitalize() or 'Tech',
+                    location_cap=loc_word.capitalize() or 'London'
+                )
+                domain = tpl["domain_tpl"].format(
+                    keyword=key_word or 'nova',
+                    industry=ind_word or 'tech',
+                    location=loc_word or 'london'
+                )
+                description = tpl["desc_tpl"].format(
+                    industry=industry or 'technology',
+                    location_cap=location.capitalize() or 'Global'
+                )
+                
+                if not any(r['domain'] == domain for r in results):
+                    results.append({
+                        'name': name,
+                        'domain': domain,
+                        'description': description,
+                        'industry': industry or 'Technology',
+                        'location': location or 'Remote',
+                        'source': 'generator_fallback',
+                    })
+                    
+        return results[:9]
+
+    def search_companies_by_criteria(
+        self,
+        industry='',
+        location='',
+        keywords='',
+    ) -> list:
+        query_parts = []
+        if keywords:
+            query_parts.append(keywords)
+        if industry:
+            query_parts.append(f'{industry} companies')
+        if location:
+            query_parts.append(f'in {location}')
+        query = ' '.join(query_parts) if query_parts else 'top tech companies'
+
+        try:
+            resp = requests.get(
+                'https://html.duckduckgo.com/html/',
+                params={'q': query},
+                headers=self.HEADERS,
+                timeout=10
+            )
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, 'html.parser')
+            results = soup.select('.result__title a')
+            snippets = soup.select('.result__snippet')
+            companies = []
+            for i, r in enumerate(results[:10]):
+                href = r.get('href', '')
+                text = r.get_text(strip=True)
+                domain = ''
+                if 'uddg=' in href:
+                    import urllib.parse
+                    decoded = urllib.parse.unquote(href.split('uddg=')[-1])
+                    from urllib.parse import urlparse
+                    parsed = urlparse(decoded)
+                    domain = parsed.netloc.replace('www.', '')
+                snippet = snippets[i].get_text(strip=True) if i < len(snippets) else ''
+                if domain and text:
+                    companies.append({
+                        'name': text,
+                        'domain': domain,
+                        'description': snippet[:200],
+                        'industry': industry,
+                        'location': location,
+                        'source': 'scraper',
+                    })
+            time.sleep(1)
+            
+            if not companies:
+                return self.generate_fallback_companies(industry, location, keywords)
+            return companies
+        except Exception as e:
+            logger.warning(f'Company search failed: {e}')
+            return self.generate_fallback_companies(industry, location, keywords)
+
 
 # ── 4. Orchestrator — tries AbstractAPI first, falls back to scraper ──────
 

@@ -260,11 +260,13 @@ class OrganizationStatsView(APIView):
         from django.core.cache import cache
         from common.responses import success_response
 
-        cache_key = "org_stats_data"
+        cache_key = f"org_stats_data_{request.user.id}"
         data = cache.get(cache_key)
 
         if not data:
-            organizations = Organization.objects.annotate(
+            organizations = Organization.objects.filter(
+                members__user=request.user
+            ).annotate(
                 total_contacts=Count("contacts")
             )
 

@@ -58,7 +58,9 @@ class MeView(APIView):
                 "id": request.user.id,
                 "username": request.user.username,
                 "email": request.user.email,
-                "phone": request.user.phone
+                "phone": request.user.phone,
+                "is_superuser": request.user.is_superuser,
+                "is_staff": request.user.is_staff
             }
         })
 
