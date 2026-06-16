@@ -69,11 +69,28 @@ def run_finder_and_import(self, search_query_id: int):
             if query.search_type in ('company', 'both'):
                 company_data = enricher.enrich(query.domain)
                 if company_data.get('name'):
-                    _, created = Organization.objects.get_or_create(
-                        name=company_data['name'],
-                        defaults={'owner': query.user}
+                    contact, created = Contact.objects.get_or_create(
+                        email=f"info@{query.domain.strip()}",
+                        organization=org,
+                        defaults={
+                            'first_name': company_data['name'],
+                            'last_name': 'Company Account',
+                            'phone': '',
+                            'company': company_data['name'],
+                            'job_title': 'Company Profile',
+                        }
                     )
                     if created:
+                        contacts_count += 1
+                        
+                        from leads.models import Lead
+                        Lead.objects.get_or_create(
+                            contact=contact,
+                            defaults={
+                                'status': 'NEW',
+                                'notes': f"Imported company from finder: {company_data.get('description', '')}"
+                            }
+                        )
                         companies_count += 1
 
         query.status            = 'done'

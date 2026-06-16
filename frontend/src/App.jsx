@@ -569,7 +569,7 @@ export default function App() {
       case 'leads':
         return <LeadsView activeOrg={activeOrg} />;
       case 'finder':
-        return <FinderPage onNavigate={(view) => setActiveView(view)} />;
+        return <FinderPage activeOrg={activeOrg} onNavigate={(view) => setActiveView(view)} />;
       case 'deals':
         return <DealsView activeOrg={activeOrg} />;
       case 'activities':

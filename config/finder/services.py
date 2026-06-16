@@ -86,13 +86,13 @@ class AbstractAPIService:
             resp.raise_for_status()
             data = resp.json()
             return {
-                'name':           data.get('company_name', ''),
+                'name':           data.get('company_name') or '',
                 'domain':         domain,
-                'industry':       data.get('industry', ''),
-                'location':       data.get('city', '') + ', ' + data.get('country', ''),
-                'employee_count': data.get('employees_count', 0),
-                'description':    data.get('description', ''),
-                'linkedin':       data.get('linkedin_url', ''),
+                'industry':       data.get('industry') or '',
+                'location':       f"{data.get('city') or ''}, {data.get('country') or ''}".strip(', '),
+                'employee_count': data.get('employees_count') or 0,
+                'description':    data.get('description') or '',
+                'linkedin':       data.get('linkedin_url') or '',
                 'source':         'abstractapi',
             }
         except requests.RequestException as e:

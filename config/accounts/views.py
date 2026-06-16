@@ -23,6 +23,24 @@ class RegisterView(APIView):
 
             user = serializer.save()
 
+            from notifications.tasks import create_notification_task, send_email_task
+            create_notification_task.delay(
+                user.id,
+                "Welcome",
+                "Welcome to Oppora CRM! Get started by setting up or joining a workspace."
+            )
+            send_email_task.delay(
+                user.id,
+                "Welcome to Oppora CRM!",
+                (
+                    f"Hello {user.username},\n\n"
+                    f"Welcome to Oppora CRM! Your account has been registered successfully.\n"
+                    f"You can now create workspaces, manage leads, and collaborate with your team.\n\n"
+                    f"Thank you,\n"
+                    f"Oppora CRM Team"
+                )
+            )
+
             return Response(
                 {
                     "success": True,

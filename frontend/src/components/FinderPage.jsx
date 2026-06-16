@@ -115,7 +115,7 @@ const md3Theme = createTheme({
   },
 });
 
-export default function FinderPage({ onNavigate }) {
+export default function FinderPage({ activeOrg, onNavigate }) {
   // Required spec states
   const [activeTab, setActiveTab] = useState('companies'); // companies | people | both
   const [companyResults, setCompanyResults] = useState([]);
@@ -372,17 +372,41 @@ export default function FinderPage({ onNavigate }) {
 
   // Action: Add company to CRM
   const handleAddCompanyToCRM = async (company) => {
+    if (!activeOrg) {
+      setErrorMessage('Please select or create an active workspace first.');
+      setSnackbarOpen(true);
+      return;
+    }
+
     try {
-      const res = await api.createOrganization(company.name);
-      if (res.success) {
-        setCompanyResults(prev => prev.map(c => c.domain === company.domain ? { ...c, imported: true } : c));
-        setSnackbarMessage(`"${company.name}" added to CRM!`);
-        setSuccessSnackbarOpen(true);
-        window.dispatchEvent(new CustomEvent('organization_created'));
+      const contactRes = await api.createContact({
+        first_name: company.name,
+        last_name: 'Company Account',
+        email: `info@${company.domain}`,
+        phone: '',
+        company: company.name,
+        job_title: 'Company Profile',
+        organization: activeOrg.id
+      });
+
+      if (contactRes.success && contactRes.data?.id) {
+        const leadRes = await api.createLead({
+          contact: contactRes.data.id,
+          status: 'NEW',
+          notes: `Imported company from finder: ${company.description || ''}`,
+          score: 0
+        });
+
+        if (leadRes.success) {
+          setCompanyResults(prev => prev.map(c => c.domain === company.domain ? { ...c, imported: true } : c));
+          setSnackbarMessage(`"${company.name}" added as a Lead inside "${activeOrg.name}"!`);
+          setSuccessSnackbarOpen(true);
+          window.dispatchEvent(new CustomEvent('lead_created'));
+        }
       }
     } catch (err) {
       console.error(err);
-      setErrorMessage(err.data?.message || 'Failed to add organization to CRM.');
+      setErrorMessage(err.data?.message || 'Failed to add company to CRM.');
       setSnackbarOpen(true);
     }
   };
