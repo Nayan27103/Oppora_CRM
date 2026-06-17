@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api';
-import { Plus, Trash2, Calendar, Phone, Users, CheckSquare, Square, FileText, X, Edit } from 'lucide-react';
+import { Plus, Trash2, Calendar, Phone, Users, CheckSquare, Square, FileText, X, Edit, RotateCcw } from 'lucide-react';
 
 export default function ActivitiesView({ activeOrg }) {
   const [activities, setActivities] = useState([]);
+  const [deletedActivities, setDeletedActivities] = useState([]);
+  const [activeTab, setActiveTab] = useState('active'); // 'active' or 'deleted'
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +47,20 @@ export default function ActivitiesView({ activeOrg }) {
     }
   };
 
+  const fetchDeletedActivities = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getDeletedActivities();
+      if (res.success) {
+        setDeletedActivities(res.data);
+      }
+    } catch (err) {
+      console.error('Error fetching deleted activities:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchLeads = async () => {
     try {
       const res = await api.getLeads();
@@ -56,14 +72,20 @@ export default function ActivitiesView({ activeOrg }) {
     }
   };
 
+  const refreshData = () => {
+    if (activeTab === 'active') {
+      fetchActivities();
+    } else {
+      fetchDeletedActivities();
+    }
+  };
+
   useEffect(() => {
     if (activeOrg) {
-      Promise.resolve().then(() => {
-        fetchActivities();
-        fetchLeads();
-      });
+      refreshData();
+      fetchLeads();
     }
-  }, [activeOrg]);
+  }, [activeOrg, activeTab]);
 
   const handleCreateActivity = async (e) => {
     e.preventDefault();
@@ -94,7 +116,7 @@ export default function ActivitiesView({ activeOrg }) {
           due_date: '',
           completed: false
         });
-        fetchActivities();
+        refreshData();
       }
     } catch (err) {
       setFormError(err.data?.message || JSON.stringify(err.data) || 'Failed to create activity');
@@ -125,6 +147,29 @@ export default function ActivitiesView({ activeOrg }) {
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to delete activity');
+    }
+  };
+
+  const handleRestore = async (id) => {
+    try {
+      const res = await api.restoreActivity(id);
+      if (res.success) {
+        fetchDeletedActivities();
+      }
+    } catch (err) {
+      alert(err.data?.message || 'Failed to restore activity');
+    }
+  };
+
+  const handlePermanentDelete = async (id) => {
+    if (!confirm('Are you sure you want to PERMANENTLY delete this activity? This cannot be undone.')) return;
+    try {
+      const res = await api.deleteActivity(id);
+      if (res.success) {
+        fetchDeletedActivities();
+      }
+    } catch (err) {
+      alert(err.data?.message || 'Failed to permanently delete activity');
     }
   };
 
@@ -202,17 +247,55 @@ export default function ActivitiesView({ activeOrg }) {
         </button>
       </div>
 
+      {/* Sub Tabs Navigation */}
+      <div style={{ display: 'flex', gap: '20px', borderBottom: '1px solid hsl(var(--border-color))', marginBottom: '1.5rem', paddingBottom: '2px' }}>
+        <button
+          onClick={() => setActiveTab('active')}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'active' ? '2px solid hsl(var(--color-primary))' : '2px solid transparent',
+            color: activeTab === 'active' ? 'hsl(var(--text-main))' : 'hsl(var(--text-secondary))',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '0.95rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Active Activities
+        </button>
+        <button
+          onClick={() => setActiveTab('deleted')}
+          style={{
+            background: 'none',
+            border: 'none',
+            borderBottom: activeTab === 'deleted' ? '2px solid hsl(var(--color-primary))' : '2px solid transparent',
+            color: activeTab === 'deleted' ? 'hsl(var(--text-main))' : 'hsl(var(--text-secondary))',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '0.95rem',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          Delete History
+        </button>
+      </div>
+
       <div className="glass-panel" style={{ padding: '1rem' }}>
         {loading ? (
           <p style={{ textAlign: 'center', padding: '2rem', color: 'hsl(var(--text-secondary))' }}>Loading activities...</p>
-        ) : activities.length === 0 ? (
-          <p style={{ textAlign: 'center', padding: '2rem', color: 'hsl(var(--text-muted))' }}>No activities logged.</p>
+        ) : (activeTab === 'active' ? activities : deletedActivities).length === 0 ? (
+          <p style={{ textAlign: 'center', padding: '2rem', color: 'hsl(var(--text-muted))' }}>
+            {activeTab === 'active' ? 'No activities logged.' : 'No deleted activities.'}
+          </p>
         ) : (
           <div className="table-container" style={{ marginTop: '0' }}>
             <table className="crm-table">
               <thead>
                 <tr>
-                  <th style={{ width: '40px' }}>Done</th>
+                  <th style={{ width: '80px' }}>{activeTab === 'active' ? 'Done' : 'Status'}</th>
                   <th>Type</th>
                   <th>Title</th>
                   <th>Description</th>
@@ -221,15 +304,21 @@ export default function ActivitiesView({ activeOrg }) {
                 </tr>
               </thead>
               <tbody>
-                {activities.map((a) => (
+                {(activeTab === 'active' ? activities : deletedActivities).map((a) => (
                   <tr key={a.id} style={{ opacity: a.completed ? 0.6 : 1 }}>
                     <td>
-                      <button
-                        onClick={() => toggleComplete(a)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'hsl(var(--color-primary))' }}
-                      >
-                        {a.completed ? <CheckSquare size={20} /> : <Square size={20} />}
-                      </button>
+                      {activeTab === 'active' ? (
+                        <button
+                          onClick={() => toggleComplete(a)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'hsl(var(--color-primary))' }}
+                        >
+                          {a.completed ? <CheckSquare size={20} /> : <Square size={20} />}
+                        </button>
+                      ) : (
+                        <span className={`badge ${a.completed ? 'badge-success' : 'badge-secondary'}`} style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
+                          {a.completed ? 'Done' : 'Pending'}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -237,7 +326,7 @@ export default function ActivitiesView({ activeOrg }) {
                         <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>{a.activity_type}</span>
                       </div>
                     </td>
-                    <td style={{ fontWeight: '600', textDecoration: a.completed ? 'line-through' : 'none' }}>
+                    <td style={{ fontWeight: '600', textDecoration: (activeTab === 'active' && a.completed) ? 'line-through' : 'none' }}>
                       {a.title}
                     </td>
                     <td style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.85rem' }}>
@@ -247,21 +336,42 @@ export default function ActivitiesView({ activeOrg }) {
                       {a.due_date ? new Date(a.due_date).toLocaleString() : '-'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => startEditActivity(a)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-primary-hover))' }}
-                          title="Edit Activity"
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(a.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
-                          title="Delete Activity"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                      <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                        {activeTab === 'active' ? (
+                          <>
+                            <button
+                              onClick={() => startEditActivity(a)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-primary-hover))' }}
+                              title="Edit Activity"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(a.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
+                              title="Delete Activity"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleRestore(a.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-success))' }}
+                              title="Restore Activity"
+                            >
+                              <RotateCcw size={16} />
+                            </button>
+                            <button
+                              onClick={() => handlePermanentDelete(a.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
+                              title="Delete Permanently"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -377,7 +487,7 @@ export default function ActivitiesView({ activeOrg }) {
           </div>
         </div>
       )}
-    {/* Edit Activity Modal */}
+      {/* Edit Activity Modal */}
       {showEditModal && (
         <div className="modal-overlay">
           <div className="modal-content">

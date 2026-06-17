@@ -392,12 +392,20 @@ export default function WorkflowsView({ activeOrg }) {
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === nodeId) {
+          const updatedData = {
+            ...node.data,
+            [key]: value
+          };
+          
+          if (node.type === 'sendEmail' && key === 'subject') {
+            updatedData.label = `Send Email: ${value}`;
+          } else if (node.type === 'createTask' && key === 'title') {
+            updatedData.label = `Create Task: ${value}`;
+          }
+
           return {
             ...node,
-            data: {
-              ...node.data,
-              [key]: value
-            }
+            data: updatedData
           };
         }
         return node;

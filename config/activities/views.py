@@ -64,7 +64,8 @@ class ActivityListView(APIView):
                 "lead",
                 "assigned_to"
                 ).filter(
-                lead__contact__organization=active_org
+                lead__contact__organization=active_org,
+                is_deleted=False
             ).order_by(F('due_date').asc(nulls_last=True)).distinct()
         else:
             activities = Activity.objects.none()
@@ -130,11 +131,71 @@ class ActivityDeleteView(APIView):
                 "message": "Activity not found"
             }, status=404)
 
-        activity.delete()
+        if activity.is_deleted:
+            activity.delete()
+            return Response({
+                "success": True,
+                "message": "Activity permanently deleted"
+            })
+        else:
+            activity.is_deleted = True
+            activity.save()
+            return Response({
+                "success": True,
+                "message": "Activity deleted",
+                "data": ActivitySerializer(
+                    activity
+                ).data
+            })
+
+class ActivityDeletedListView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from common.utils import get_active_org
+        active_org = get_active_org(request)
+
+        if active_org:
+            activities = Activity.objects.select_related(
+                "lead",
+                "assigned_to"
+            ).filter(
+                lead__contact__organization=active_org,
+                is_deleted=True
+            ).order_by('-updated_at').distinct()
+        else:
+            activities = Activity.objects.none()
+
+        serializer = ActivitySerializer(
+            activities,
+            many=True
+        )
 
         return Response({
             "success": True,
-            "message": "Activity deleted",
+            "data": serializer.data
+        })
+
+class ActivityRestoreView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            activity = Activity.objects.get(pk=pk)
+        except Activity.DoesNotExist:
+            return Response({
+                "success": False,
+                "message": "Activity not found"
+            }, status=404)
+
+        activity.is_deleted = False
+        activity.save()
+
+        return Response({
+            "success": True,
+            "message": "Activity restored",
             "data": ActivitySerializer(
                 activity
             ).data

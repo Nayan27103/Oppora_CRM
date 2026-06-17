@@ -270,6 +270,10 @@ class ApiClient {
     return await this.request('/api/activities/');
   }
 
+  async getDeletedActivities() {
+    return await this.request('/api/activities/deleted/');
+  }
+
   async createActivity(activityData) {
     return await this.request('/api/activities/create/', {
       method: 'POST',
@@ -287,6 +291,12 @@ class ApiClient {
   async deleteActivity(id) {
     return await this.request(`/api/activities/${id}/delete/`, {
       method: 'DELETE'
+    });
+  }
+
+  async restoreActivity(id) {
+    return await this.request(`/api/activities/${id}/restore/`, {
+      method: 'POST'
     });
   }
 

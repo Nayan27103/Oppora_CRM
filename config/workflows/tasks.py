@@ -261,20 +261,29 @@ def execute_workflow_task(self, workflow_id, context):
                 break
 
             # Execute node logic
+            node_type = node.get('type')
+            node_data = node.get('data', {})
+            if node_type == 'sendEmail' and node_data.get('subject'):
+                node_label = f"Send Email: {node_data.get('subject')}"
+            elif node_type == 'createTask' and node_data.get('title'):
+                node_label = f"Create Task: {node_data.get('title')}"
+            else:
+                node_label = node_data.get('label', node_type)
+
             try:
                 output, next_handle = run_node_action(node, obj)
                 logs.append({
                     "node_id": current_node_id,
-                    "node_type": node.get('type'),
-                    "node_label": node.get('data', {}).get('label', node.get('type')),
+                    "node_type": node_type,
+                    "node_label": node_label,
                     "status": "SUCCESS",
                     "output": output
                 })
             except Exception as node_err:
                 logs.append({
                     "node_id": current_node_id,
-                    "node_type": node.get('type'),
-                    "node_label": node.get('data', {}).get('label', node.get('type')),
+                    "node_type": node_type,
+                    "node_label": node_label,
                     "status": "FAILED",
                     "error": str(node_err)
                 })
