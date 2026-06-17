@@ -773,7 +773,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                     {companyLoading ? 'Searching companies...' : getStatusText(searchStatus)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {companyLoading ? 'Querying DuckDuckGo scraper...' : 'Scanning databases and Hunter.io records...'}
+                    {companyLoading ? 'Querying Google Serper API...' : 'Scanning databases and search records...'}
                   </Typography>
                 </Box>
                 <Box sx={{ width: '100%', maxWidth: '360px' }}>

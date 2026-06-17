@@ -3,11 +3,13 @@ from bs4 import BeautifulSoup
 from decouple import config
 import logging
 import time
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
 HUNTER_API_KEY   = config('HUNTER_API_KEY', default='')
 ABSTRACT_API_KEY = config('ABSTRACT_API_KEY', default='')
+SERPER_API_KEY   = config('SERPER_API_KEY', default='')
 
 
 # ── 1. Hunter.io — people + emails by domain ──────────────────────────────
@@ -157,11 +159,46 @@ class WebScraperService:
 
     def search_people_duckduckgo(self, domain: str, job_title: str = '') -> list:
         """
-        Searches DuckDuckGo for people at a company.
+        Searches Google Serper API (or DuckDuckGo HTML as fallback) for people at a company.
         Query: 'site:linkedin.com/in <job_title> <company domain>'
         Returns basic name + title info (no email — use Hunter for that).
         """
         query = f'site:linkedin.com/in "{job_title}" "{domain}"' if job_title else f'site:linkedin.com/in "{domain}"'
+        
+        # ── Try Serper first if key is configured ──
+        if SERPER_API_KEY:
+            try:
+                headers = {
+                    'X-API-KEY': SERPER_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+                payload = {'q': query, 'num': 10}
+                resp = requests.post('https://google.serper.dev/search', json=payload, headers=headers, timeout=10)
+                resp.raise_for_status()
+                results = resp.json().get('organic', [])
+                people = []
+                for r in results:
+                    text = r.get('title', '')
+                    # LinkedIn result titles look like: "John Doe - Software Engineer at Stripe"
+                    if ' - ' in text:
+                        parts = text.split(' - ', 1)
+                        name_part = parts[0].strip()
+                        role_part = parts[1].strip() if len(parts) > 1 else ''
+                        names = name_part.split(' ', 1)
+                        people.append({
+                            'first_name': names[0] if names else '',
+                            'last_name':  names[1] if len(names) > 1 else '',
+                            'email':      '',
+                            'job_title':  role_part.split(' at ')[0].strip() if ' at ' in role_part else role_part,
+                            'company':    domain,
+                            'domain':     domain,
+                            'source':     'serper',
+                        })
+                return people
+            except Exception as e:
+                logger.warning(f'Serper people search failed for {domain}: {e}. Falling back to DDG.')
+
+        # ── Fallback to DuckDuckGo HTML Scraper ──
         try:
             resp = requests.get(
                 'https://html.duckduckgo.com/html/',
@@ -316,6 +353,36 @@ class WebScraperService:
             query_parts.append(f'in {location}')
         query = ' '.join(query_parts) if query_parts else 'top tech companies'
 
+        # ── Try Serper first if key is configured ──
+        if SERPER_API_KEY:
+            try:
+                headers = {
+                    'X-API-KEY': SERPER_API_KEY,
+                    'Content-Type': 'application/json'
+                }
+                payload = {'q': query, 'num': 10}
+                resp = requests.post('https://google.serper.dev/search', json=payload, headers=headers, timeout=10)
+                resp.raise_for_status()
+                results = resp.json().get('organic', [])
+                companies = []
+                for r in results:
+                    url = r.get('link', '')
+                    domain = urlparse(url).netloc.replace('www.', '') if url else ''
+                    if domain:
+                        companies.append({
+                            'name': r.get('title', ''),
+                            'domain': domain,
+                            'description': r.get('snippet', '')[:200],
+                            'industry': industry,
+                            'location': location,
+                            'source': 'serper',
+                        })
+                if companies:
+                    return companies
+            except Exception as e:
+                logger.warning(f'Serper company search failed: {e}. Falling back to DDG.')
+
+        # ── Fallback to DuckDuckGo HTML Scraper ──
         try:
             resp = requests.get(
                 'https://html.duckduckgo.com/html/',
@@ -335,8 +402,8 @@ class WebScraperService:
                 if 'uddg=' in href:
                     import urllib.parse
                     decoded = urllib.parse.unquote(href.split('uddg=')[-1])
-                    from urllib.parse import urlparse
-                    parsed = urlparse(decoded)
+                    from urllib.parse import urlparse as inner_urlparse
+                    parsed = inner_urlparse(decoded)
                     domain = parsed.netloc.replace('www.', '')
                 snippet = snippets[i].get_text(strip=True) if i < len(snippets) else ''
                 if domain and text:

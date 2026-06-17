@@ -64,7 +64,7 @@ class DealListView(APIView):
                 "lead__contact"
                 ).filter(
                 lead__contact__organization=active_org
-                ).distinct()
+                ).distinct().order_by("-created_at")
         else:
             deals = Deal.objects.none()
 

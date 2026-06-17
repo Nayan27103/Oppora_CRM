@@ -53,7 +53,7 @@ class LeadListView(APIView):
                 "contact"
             ).filter(
                 contact__organization=active_org
-            ).distinct()
+            ).distinct().order_by("-created_at")
         else:
             leads = Lead.objects.none()
 

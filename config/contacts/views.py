@@ -57,7 +57,7 @@ class ContactListView(APIView):
         if active_org:
             contacts = Contact.objects.filter(
                 organization=active_org
-            ).distinct()
+            ).distinct().order_by("-created_at")
         else:
             contacts = Contact.objects.none()
 
