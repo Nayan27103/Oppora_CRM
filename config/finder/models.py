@@ -28,6 +28,7 @@ class SearchQuery(models.Model):
     contacts_imported = models.IntegerField(default=0)
     companies_imported = models.IntegerField(default=0)
     error_message = models.TextField(blank=True)
+    results = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

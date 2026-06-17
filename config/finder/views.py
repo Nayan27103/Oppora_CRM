@@ -54,7 +54,14 @@ class SearchStatusView(APIView):
             return error_response('Search not found.', status_code=404)
 
         serializer = SearchQueryResultSerializer(query)
-        return success_response(data=serializer.data)
+        data = serializer.data
+        
+        # Inject API key config status warnings
+        from decouple import config
+        data['serper_configured'] = bool(config('SERPER_API_KEY', default=''))
+        data['hunter_configured'] = bool(config('HUNTER_API_KEY', default=''))
+        
+        return success_response(data=data)
 
 
 class SearchHistoryView(APIView):

@@ -209,14 +209,17 @@ class ContactBulkCreateView(APIView):
                     "message": f"Organization {organization_id} does not exist"
                 }, status=400)
 
+            first_name = item.get("first_name") or "Discovered"
+            last_name = item.get("last_name") or ""
             contacts.append(
                 Contact(
                     organization_id=organization_id,
-                    first_name=item["first_name"],
-                    last_name=item.get("last_name", ""),
+                    first_name=first_name,
+                    last_name=last_name,
                     email=item["email"],
                     phone=item.get("phone", ""),
-                    company=item.get("company", "")
+                    company=item.get("company", ""),
+                    job_title=item.get("job_title", "")
                 )
             )
 

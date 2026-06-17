@@ -127,6 +127,15 @@ export default function FinderPage({ activeOrg, onNavigate }) {
   const [history, setHistory] = useState([]);
   const pollingRef = useRef(null);
 
+  // Row selection & import states
+  const [selectedEmails, setSelectedEmails] = useState([]);
+  const [importedEmails, setImportedEmails] = useState([]);
+  const [importing, setImporting] = useState(false);
+
+  // API Configuration flags
+  const [serperConfigured, setSerperConfigured] = useState(true);
+  const [hunterConfigured, setHunterConfigured] = useState(true);
+
   // Additional form fields states
   const [companiesIndustry, setCompaniesIndustry] = useState('');
   const [companiesLocation, setCompaniesLocation] = useState('');
@@ -185,6 +194,8 @@ export default function FinderPage({ activeOrg, onNavigate }) {
         if (res.success) {
           const status = res.data.status;
           setSearchStatus(status);
+          setSerperConfigured(res.data.serper_configured !== false);
+          setHunterConfigured(res.data.hunter_configured !== false);
           setImportedCounts({
             contacts: res.data.contacts_imported || 0,
             companies: res.data.companies_imported || 0
@@ -195,11 +206,19 @@ export default function FinderPage({ activeOrg, onNavigate }) {
             pollingRef.current = null;
             
             // Notification
-            setSnackbarMessage('Import complete!');
+            setSnackbarMessage('Search complete!');
             setSuccessSnackbarOpen(true);
 
-            // Fetch newly imported contacts from database
-            fetchNewlyImportedContacts(domain);
+            // Set results directly in state instead of global contacts
+            const results = res.data.results || {};
+            setPeopleResults(results.people || []);
+            if (results.company && results.company.name) {
+              setCompanyResults([results.company]);
+            } else {
+              setCompanyResults([]);
+            }
+            setSelectedEmails([]);
+            setImportedEmails([]);
             
             // Refresh history
             fetchHistory();
@@ -317,6 +336,8 @@ export default function FinderPage({ activeOrg, onNavigate }) {
     setSearchStatus('pending');
     setQueryId(null);
     setPeopleResults([]);
+    setSelectedEmails([]);
+    setImportedEmails([]);
     setImportedCounts({ contacts: 0, companies: 0 });
 
     try {
@@ -347,6 +368,8 @@ export default function FinderPage({ activeOrg, onNavigate }) {
     setSearchStatus('pending');
     setQueryId(null);
     setPeopleResults([]);
+    setSelectedEmails([]);
+    setImportedEmails([]);
     setImportedCounts({ contacts: 0, companies: 0 });
 
     try {
@@ -367,6 +390,53 @@ export default function FinderPage({ activeOrg, onNavigate }) {
       setSearchStatus('failed');
       setErrorMessage(err.data?.message || err.message || 'Search failed. Please try again.');
       setSnackbarOpen(true);
+    }
+  };
+
+  // Action: Import selected contacts to CRM
+  const handleImportSelected = async () => {
+    if (!activeOrg) {
+      setErrorMessage('Please select or create an active workspace first.');
+      setSnackbarOpen(true);
+      return;
+    }
+    if (selectedEmails.length === 0) return;
+
+    setImporting(true);
+    try {
+      const selectedPeopleList = peopleResults.filter(p => selectedEmails.includes(p.email));
+      
+      const payload = selectedPeopleList.map(p => ({
+        organization_id: activeOrg.id,
+        first_name: p.first_name || 'Discovered',
+        last_name: p.last_name || 'Lead',
+        email: p.email,
+        phone: '',
+        company: p.company || domain,
+        job_title: p.job_title || ''
+      }));
+
+      const res = await api.bulkCreateContacts(payload);
+      if (res.success) {
+        setSnackbarMessage(`Successfully imported ${selectedPeopleList.length} contacts into "${activeOrg.name}"!`);
+        setSuccessSnackbarOpen(true);
+        
+        // Add to imported list to disable select checkboxes/rows
+        setImportedEmails(prev => [...prev, ...selectedPeopleList.map(p => p.email)]);
+        setSelectedEmails([]);
+        setImportedCounts(prev => ({
+          ...prev,
+          contacts: prev.contacts + selectedPeopleList.length
+        }));
+        
+        window.dispatchEvent(new CustomEvent('lead_created'));
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMessage(err.data?.message || 'Failed to import selected contacts.');
+      setSnackbarOpen(true);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -563,6 +633,20 @@ export default function FinderPage({ activeOrg, onNavigate }) {
             <Tab label="Both" value="both" />
           </Tabs>
         </Box>
+
+        {(!serperConfigured || !hunterConfigured) && (
+          <Alert severity="warning" sx={{ borderRadius: '12px', border: '1px solid rgba(242, 184, 181, 0.3)' }}>
+            {!serperConfigured && !hunterConfigured && (
+              "Both Google Serper and Hunter.io API keys are missing. Using rate-limited DuckDuckGo scraping. Set SERPER_API_KEY and HUNTER_API_KEY in your .env file."
+            )}
+            {!serperConfigured && hunterConfigured && (
+              "Google Serper API key is missing. Falling back to rate-limited DuckDuckGo HTML scraping. Set SERPER_API_KEY in your .env file to enable reliable searching."
+            )}
+            {serperConfigured && !hunterConfigured && (
+              "Hunter.io API key is missing. Email discovery is disabled (names and titles will be scraped but emails will be blank). Set HUNTER_API_KEY in your .env file."
+            )}
+          </Alert>
+        )}
 
         {/* Tab content panels */}
         <Grid container spacing={4}>
@@ -880,11 +964,37 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                     size="medium"
                     sx={{ fontWeight: 600, borderRadius: '8px' }}
                   />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={selectedEmails.length === 0 || importing}
+                    onClick={handleImportSelected}
+                    sx={{ borderRadius: '8px', fontSize: '0.8rem', px: 3 }}
+                  >
+                    {importing ? 'Importing...' : `Import Selected (${selectedEmails.length})`}
+                  </Button>
                 </Box>
                 <TableContainer component={Paper} sx={{ backgroundColor: 'background.paper', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', overflow: 'hidden' }}>
                   <Table size="small">
                     <TableHead sx={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
                       <TableRow>
+                        <TableCell sx={{ width: '40px', py: 1.5 }}>
+                          <input
+                            type="checkbox"
+                            checked={peopleResults.length > 0 && peopleResults.every(p => selectedEmails.includes(p.email) || importedEmails.includes(p.email))}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                const toSelect = peopleResults
+                                  .map(p => p.email)
+                                  .filter(email => email && !importedEmails.includes(email));
+                                setSelectedEmails(toSelect);
+                              } else {
+                                setSelectedEmails([]);
+                              }
+                            }}
+                            style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                          />
+                        </TableCell>
                         <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Avatar</TableCell>
                         <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Name</TableCell>
                         <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Email</TableCell>
@@ -895,17 +1005,44 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                     </TableHead>
                     <TableBody>
                       {peopleResults.length > 0 ? (
-                        peopleResults.map((person) => (
-                          <TableRow key={person.id} sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                        peopleResults.map((person, idx) => (
+                          <TableRow key={person.email || idx} sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                            <TableCell sx={{ borderBottom: 'none' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedEmails.includes(person.email)}
+                                disabled={importedEmails.includes(person.email)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedEmails(prev => [...prev, person.email]);
+                                  } else {
+                                    setSelectedEmails(prev => prev.filter(email => email !== person.email));
+                                  }
+                                }}
+                                style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                              />
+                            </TableCell>
                             <TableCell sx={{ borderBottom: 'none' }}>
                               <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', backgroundColor: '#381E72', color: '#D0BCFF', fontWeight: 600 }}>
                                 {getInitials(person)}
                               </Avatar>
                             </TableCell>
                             <TableCell sx={{ fontWeight: 500, borderBottom: 'none' }}>
-                              {person.first_name} {person.last_name}
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {person.first_name} {person.last_name}
+                                {person.linkedin && (
+                                  <a href={person.linkedin} target="_blank" rel="noopener noreferrer" style={{ color: '#D0BCFF', display: 'inline-flex', alignItems: 'center' }} title="LinkedIn Profile">
+                                    <Globe size={14} />
+                                  </a>
+                                )}
+                              </Box>
                             </TableCell>
-                            <TableCell sx={{ color: 'text.secondary', borderBottom: 'none' }}>{person.email}</TableCell>
+                            <TableCell sx={{ color: 'text.secondary', borderBottom: 'none' }}>
+                              {person.email}
+                              {importedEmails.includes(person.email) && (
+                                <Chip label="Imported" size="small" color="success" variant="outlined" sx={{ ml: 1, height: '18px', fontSize: '0.65rem' }} />
+                              )}
+                            </TableCell>
                             <TableCell sx={{ borderBottom: 'none' }}>{person.job_title}</TableCell>
                             <TableCell sx={{ borderBottom: 'none' }}>{person.company}</TableCell>
                             <TableCell sx={{ borderBottom: 'none', textAlign: 'center' }}>
@@ -917,7 +1054,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                          <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                             No people found at this domain.
                           </TableCell>
                         </TableRow>
@@ -931,13 +1068,22 @@ export default function FinderPage({ activeOrg, onNavigate }) {
             {/* TAB 3 Results: Both Info (Company Card + People Table) */}
             {activeTab === 'both' && searchStatus === 'done' && (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Chip
                     label={`${importedCounts.contacts} contacts + ${importedCounts.companies} companies imported`}
                     color="success"
                     size="medium"
                     sx={{ fontWeight: 600, borderRadius: '8px' }}
                   />
+                  <Button
+                    variant="contained"
+                    size="small"
+                    disabled={selectedEmails.length === 0 || importing}
+                    onClick={handleImportSelected}
+                    sx={{ borderRadius: '8px', fontSize: '0.8rem', px: 3 }}
+                  >
+                    {importing ? 'Importing...' : `Import Selected (${selectedEmails.length})`}
+                  </Button>
                 </Box>
                 
                 {/* Company Info section */}
@@ -949,6 +1095,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                 }}>
                   {(() => {
                     const company = getCompanyDetailsForBoth();
+                    const isAlreadyImported = companyResults[0]?.imported;
                     return (
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -962,10 +1109,19 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                             </Typography>
                           </Box>
                         </Box>
-                        <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                        <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center', flexWrap: 'wrap' }}>
                           <Chip label={company.industry} size="small" variant="outlined" />
                           <Chip label={company.location} size="small" variant="outlined" />
                           <Chip label={company.employeeCount} size="small" variant="outlined" />
+                          <Button 
+                            variant="contained" 
+                            size="small" 
+                            disabled={isAlreadyImported}
+                            onClick={() => handleAddCompanyToCRM(companyResults[0] || company)}
+                            sx={{ fontSize: '0.75rem', py: 0.75, borderRadius: '8px', ml: 1 }}
+                          >
+                            {isAlreadyImported ? 'Added to CRM' : 'Add Company to CRM'}
+                          </Button>
                         </Box>
                       </Box>
                     );
@@ -977,6 +1133,23 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                   <Table size="small">
                     <TableHead sx={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
                       <TableRow>
+                        <TableCell sx={{ width: '40px', py: 1.5 }}>
+                          <input
+                            type="checkbox"
+                            checked={peopleResults.length > 0 && peopleResults.every(p => selectedEmails.includes(p.email) || importedEmails.includes(p.email))}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                const toSelect = peopleResults
+                                  .map(p => p.email)
+                                  .filter(email => email && !importedEmails.includes(email));
+                                setSelectedEmails(toSelect);
+                              } else {
+                                setSelectedEmails([]);
+                              }
+                            }}
+                            style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                          />
+                        </TableCell>
                         <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Avatar</TableCell>
                         <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Name</TableCell>
                         <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Email</TableCell>
@@ -987,17 +1160,44 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                     </TableHead>
                     <TableBody>
                       {peopleResults.length > 0 ? (
-                        peopleResults.map((person) => (
-                          <TableRow key={person.id} sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                        peopleResults.map((person, idx) => (
+                          <TableRow key={person.email || idx} sx={{ borderBottom: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                            <TableCell sx={{ borderBottom: 'none' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedEmails.includes(person.email)}
+                                disabled={importedEmails.includes(person.email)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedEmails(prev => [...prev, person.email]);
+                                  } else {
+                                    setSelectedEmails(prev => prev.filter(email => email !== person.email));
+                                  }
+                                }}
+                                style={{ cursor: 'pointer', transform: 'scale(1.2)' }}
+                              />
+                            </TableCell>
                             <TableCell sx={{ borderBottom: 'none' }}>
                               <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', backgroundColor: '#381E72', color: '#D0BCFF', fontWeight: 600 }}>
                                 {getInitials(person)}
                               </Avatar>
                             </TableCell>
                             <TableCell sx={{ fontWeight: 500, borderBottom: 'none' }}>
-                              {person.first_name} {person.last_name}
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                {person.first_name} {person.last_name}
+                                {person.linkedin && (
+                                  <a href={person.linkedin} target="_blank" rel="noopener noreferrer" style={{ color: '#D0BCFF', display: 'inline-flex', alignItems: 'center' }} title="LinkedIn Profile">
+                                    <Globe size={14} />
+                                  </a>
+                                )}
+                              </Box>
                             </TableCell>
-                            <TableCell sx={{ color: 'text.secondary', borderBottom: 'none' }}>{person.email}</TableCell>
+                            <TableCell sx={{ color: 'text.secondary', borderBottom: 'none' }}>
+                              {person.email}
+                              {importedEmails.includes(person.email) && (
+                                <Chip label="Imported" size="small" color="success" variant="outlined" sx={{ ml: 1, height: '18px', fontSize: '0.65rem' }} />
+                              )}
+                            </TableCell>
                             <TableCell sx={{ borderBottom: 'none' }}>{person.job_title}</TableCell>
                             <TableCell sx={{ borderBottom: 'none' }}>{person.company}</TableCell>
                             <TableCell sx={{ borderBottom: 'none', textAlign: 'center' }}>
@@ -1009,7 +1209,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={6} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                          <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
                             No people found at this domain.
                           </TableCell>
                         </TableRow>

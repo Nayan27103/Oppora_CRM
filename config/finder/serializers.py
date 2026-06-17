@@ -19,6 +19,6 @@ class SearchQueryResultSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'domain', 'industry', 'job_title', 'location',
             'search_type', 'status', 'contacts_imported',
-            'companies_imported', 'error_message', 'created_at'
+            'companies_imported', 'error_message', 'results', 'created_at'
         ]
         read_only_fields = fields

@@ -30,12 +30,13 @@ def run_finder_and_import(self, search_query_id: int):
     query.save(update_fields=['status'])
 
     try:
-        org            = _get_or_create_user_org(query.user)
-        contacts_count = 0
-        companies_count = 0
+        results_data = {
+            'people': [],
+            'company': {}
+        }
 
         if query.domain:
-            # ── People: Hunter (emails) + DDG scraper (names/titles) ──
+            # ── People: Hunter (emails) + DDG/Serper scraper (names/titles) ──
             hunter_data    = hunter.search_by_domain(query.domain, limit=10)
             hunter_people  = hunter_data.get('people', [])
 
@@ -45,58 +46,19 @@ def run_finder_and_import(self, search_query_id: int):
             )
 
             all_people = merge_and_deduplicate(hunter_people, scraped_people)
-
-            with transaction.atomic():
-                for person in all_people:
-                    email = person.get('email', '').strip()
-                    if not email:
-                        continue   # skip if no email — can't deduplicate safely
-                    _, created = Contact.objects.get_or_create(
-                        email=email,
-                        organization=org,
-                        defaults={
-                            'first_name': person.get('first_name', ''),
-                            'last_name':  person.get('last_name', ''),
-                            'phone':      '',
-                            'company':    person.get('company', ''),
-                            'job_title':  person.get('job_title', ''),
-                        }
-                    )
-                    if created:
-                        contacts_count += 1
+            results_data['people'] = all_people
 
             # ── Company: AbstractAPI → scraper fallback ──
             if query.search_type in ('company', 'both'):
                 company_data = enricher.enrich(query.domain)
                 if company_data.get('name'):
-                    contact, created = Contact.objects.get_or_create(
-                        email=f"info@{query.domain.strip()}",
-                        organization=org,
-                        defaults={
-                            'first_name': company_data['name'],
-                            'last_name': 'Company Account',
-                            'phone': '',
-                            'company': company_data['name'],
-                            'job_title': 'Company Profile',
-                        }
-                    )
-                    if created:
-                        contacts_count += 1
-                        
-                        from leads.models import Lead
-                        Lead.objects.get_or_create(
-                            contact=contact,
-                            defaults={
-                                'status': 'NEW',
-                                'notes': f"Imported company from finder: {company_data.get('description', '')}"
-                            }
-                        )
-                        companies_count += 1
+                    results_data['company'] = company_data
 
         query.status            = 'done'
-        query.contacts_imported = contacts_count
-        query.companies_imported = companies_count
-        query.save(update_fields=['status', 'contacts_imported', 'companies_imported'])
+        query.results           = results_data
+        query.contacts_imported = 0
+        query.companies_imported = 0
+        query.save(update_fields=['status', 'results', 'contacts_imported', 'companies_imported'])
 
     except Exception as exc:
         logger.exception(f'Finder task failed: {exc}')
@@ -104,6 +66,7 @@ def run_finder_and_import(self, search_query_id: int):
         query.error_message = str(exc)
         query.save(update_fields=['status', 'error_message'])
         raise self.retry(exc=exc)
+
 
 
 def _get_or_create_user_org(user):

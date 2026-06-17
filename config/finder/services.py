@@ -37,13 +37,14 @@ class HunterService:
             people = []
             for e in data.get('emails', []):
                 people.append({
-                    'first_name': e.get('first_name', ''),
-                    'last_name':  e.get('last_name', ''),
-                    'email':      e.get('value', ''),
-                    'job_title':  e.get('position', ''),
-                    'company':    data.get('organization', ''),
+                    'first_name': e.get('first_name') or '',
+                    'last_name':  e.get('last_name') or '',
+                    'email':      e.get('value') or '',
+                    'job_title':  e.get('position') or '',
+                    'company':    data.get('organization') or '',
                     'domain':     domain,
                     'source':     'hunter',
+                    'linkedin':   e.get('linkedin') or '',
                 })
             return {
                 'people': people,
@@ -179,21 +180,37 @@ class WebScraperService:
                 people = []
                 for r in results:
                     text = r.get('title', '')
-                    # LinkedIn result titles look like: "John Doe - Software Engineer at Stripe"
+                    link = r.get('link', '')
+                    if 'linkedin.com/company' in link:
+                        continue
+                        
+                    # Clean up trailing LinkedIn suffixes
+                    text = text.replace(' | LinkedIn', '').replace(' - LinkedIn', '')
+                    delimiter = None
                     if ' - ' in text:
-                        parts = text.split(' - ', 1)
+                        delimiter = ' - '
+                    elif ' | ' in text:
+                        delimiter = ' | '
+                        
+                    if delimiter:
+                        parts = text.split(delimiter, 1)
                         name_part = parts[0].strip()
                         role_part = parts[1].strip() if len(parts) > 1 else ''
-                        names = name_part.split(' ', 1)
-                        people.append({
-                            'first_name': names[0] if names else '',
-                            'last_name':  names[1] if len(names) > 1 else '',
-                            'email':      '',
-                            'job_title':  role_part.split(' at ')[0].strip() if ' at ' in role_part else role_part,
-                            'company':    domain,
-                            'domain':     domain,
-                            'source':     'serper',
-                        })
+                    else:
+                        name_part = text.strip()
+                        role_part = ''
+                        
+                    names = name_part.split(' ', 1)
+                    people.append({
+                        'first_name': names[0] if names else '',
+                        'last_name':  names[1] if len(names) > 1 else '',
+                        'email':      '',
+                        'job_title':  role_part.split(' at ')[0].strip() if ' at ' in role_part else role_part,
+                        'company':    domain,
+                        'domain':     domain,
+                        'source':     'serper',
+                        'linkedin':   link,
+                    })
                 return people
             except Exception as e:
                 logger.warning(f'Serper people search failed for {domain}: {e}. Falling back to DDG.')
@@ -212,26 +229,46 @@ class WebScraperService:
             people = []
             for r in results[:10]:
                 text = r.get_text(strip=True)
-                # LinkedIn result titles look like: "John Doe - Software Engineer at Stripe"
+                href = r.get('href', '')
+                link = href
+                if 'uddg=' in href:
+                    import urllib.parse
+                    link = urllib.parse.unquote(href.split('uddg=')[-1])
+                if 'linkedin.com/company' in link:
+                    continue
+
+                text = text.replace(' | LinkedIn', '').replace(' - LinkedIn', '')
+                delimiter = None
                 if ' - ' in text:
-                    parts = text.split(' - ', 1)
+                    delimiter = ' - '
+                elif ' | ' in text:
+                    delimiter = ' | '
+                    
+                if delimiter:
+                    parts = text.split(delimiter, 1)
                     name_part = parts[0].strip()
                     role_part = parts[1].strip() if len(parts) > 1 else ''
-                    names = name_part.split(' ', 1)
-                    people.append({
-                        'first_name': names[0] if names else '',
-                        'last_name':  names[1] if len(names) > 1 else '',
-                        'email':      '',
-                        'job_title':  role_part.split(' at ')[0].strip() if ' at ' in role_part else role_part,
-                        'company':    domain,
-                        'domain':     domain,
-                        'source':     'scraper',
-                    })
+                else:
+                    name_part = text.strip()
+                    role_part = ''
+                    
+                names = name_part.split(' ', 1)
+                people.append({
+                    'first_name': names[0] if names else '',
+                    'last_name':  names[1] if len(names) > 1 else '',
+                    'email':      '',
+                    'job_title':  role_part.split(' at ')[0].strip() if ' at ' in role_part else role_part,
+                    'company':    domain,
+                    'domain':     domain,
+                    'source':     'scraper',
+                    'linkedin':   link,
+                })
             time.sleep(1)   # be polite to DDG
             return people
         except Exception as e:
             logger.warning(f'DDG scrape failed for {domain}: {e}')
             return []
+
 
     def generate_fallback_companies(self, industry='', location='', keywords='') -> list:
         catalog = [
