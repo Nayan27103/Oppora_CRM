@@ -500,6 +500,20 @@ class ApiClient {
     }
     return await this.request(path);
   }
+
+  async testURLScan(domain) {
+    return await this.request('/api/finder/urlscan/', {
+      method: 'POST',
+      body: { domain }
+    });
+  }
+
+  async testTheirStack(technology) {
+    return await this.request('/api/finder/theirstack/', {
+      method: 'POST',
+      body: { technology }
+    });
+  }
 }
 
 export const api = new ApiClient();

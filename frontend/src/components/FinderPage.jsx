@@ -148,6 +148,17 @@ export default function FinderPage({ activeOrg, onNavigate }) {
   const [bothJobTitle, setBothJobTitle] = useState('');
   const [bothLocation, setBothLocation] = useState('');
 
+  // Diagnostic states
+  const [urlscanDomain, setUrlscanDomain] = useState('');
+  const [urlscanLoading, setUrlscanLoading] = useState(false);
+  const [urlscanResult, setUrlscanResult] = useState(null);
+  const [urlscanError, setUrlscanError] = useState('');
+
+  const [theirstackTech, setTheirstackTech] = useState('');
+  const [theirstackLoading, setTheirstackLoading] = useState(false);
+  const [theirstackResult, setTheirstackResult] = useState(null);
+  const [theirstackError, setTheirstackError] = useState('');
+
   // Results & Org states
   const [peopleResults, setPeopleResults] = useState([]);
   const [currentOrgId, setCurrentOrgId] = useState(null);
@@ -294,6 +305,46 @@ export default function FinderPage({ activeOrg, onNavigate }) {
       }
     } catch (err) {
       console.error('Failed to fetch newly imported contacts:', err);
+    }
+  };
+
+  const handleURLScanTest = async (e) => {
+    if (e) e.preventDefault();
+    if (!urlscanDomain.trim()) return;
+    setUrlscanLoading(true);
+    setUrlscanResult(null);
+    setUrlscanError('');
+    try {
+      const res = await api.testURLScan(urlscanDomain.trim());
+      if (res.success) {
+        setUrlscanResult(res.data);
+      } else {
+        setUrlscanError(res.message || 'Verification failed.');
+      }
+    } catch (err) {
+      setUrlscanError(err.data?.message || err.message || 'Error executing URLScan API test.');
+    } finally {
+      setUrlscanLoading(false);
+    }
+  };
+
+  const handleTheirStackTest = async (e) => {
+    if (e) e.preventDefault();
+    if (!theirstackTech.trim()) return;
+    setTheirstackLoading(true);
+    setTheirstackResult(null);
+    setTheirstackError('');
+    try {
+      const res = await api.testTheirStack(theirstackTech.trim());
+      if (res.success) {
+        setTheirstackResult(res.data);
+      } else {
+        setTheirstackError(res.message || 'Verification failed.');
+      }
+    } catch (err) {
+      setTheirstackError(err.data?.message || err.message || 'Error executing TheirStack API test.');
+    } finally {
+      setTheirstackLoading(false);
     }
   };
 
@@ -631,6 +682,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
             <Tab label="Companies" value="companies" />
             <Tab label="People" value="people" />
             <Tab label="Both" value="both" />
+            <Tab label="API Diagnostic" value="diagnostic" />
           </Tabs>
         </Box>
 
@@ -822,11 +874,204 @@ export default function FinderPage({ activeOrg, onNavigate }) {
               </Card>
             )}
 
+            {activeTab === 'diagnostic' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                {/* URLScan test form */}
+                <Card sx={{ backgroundColor: 'background.paper', borderRadius: '28px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 2 }}>
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <Typography variant="h6" color="text.primary">Test URLScan.io API</Typography>
+                    <form onSubmit={handleURLScanTest} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <Box>
+                        <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Target Domain</Typography>
+                        <TextField
+                          fullWidth
+                          required
+                          placeholder="e.g. stripe.com"
+                          value={urlscanDomain}
+                          onChange={(e) => setUrlscanDomain(e.target.value)}
+                          disabled={urlscanLoading}
+                        />
+                      </Box>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        fullWidth
+                        color="primary"
+                        disabled={urlscanLoading || !urlscanDomain.trim()}
+                        startIcon={urlscanLoading ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
+                      >
+                        Query URLScan
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* TheirStack test form */}
+                <Card sx={{ backgroundColor: 'background.paper', borderRadius: '28px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 2 }}>
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <Typography variant="h6" color="text.primary">Test TheirStack API</Typography>
+                    <form onSubmit={handleTheirStackTest} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <Box>
+                        <Typography variant="caption" sx={{ display: 'block', mb: 1, color: 'text.secondary', fontWeight: 500 }}>Technology Name</Typography>
+                        <TextField
+                          fullWidth
+                          required
+                          placeholder="e.g. react, snowflake"
+                          value={theirstackTech}
+                          onChange={(e) => setTheirstackTech(e.target.value)}
+                          disabled={theirstackLoading}
+                        />
+                      </Box>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        fullWidth
+                        color="primary"
+                        disabled={theirstackLoading || !theirstackTech.trim()}
+                        startIcon={theirstackLoading ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
+                      >
+                        Query TheirStack
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              </Box>
+            )}
+
           </Grid>
 
           {/* Right Column: Dynamic Loader / Results Panel */}
           <Grid item xs={12} md={8}>
             
+            {activeTab === 'diagnostic' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, height: '100%' }}>
+                {/* Initial welcoming state */}
+                {!urlscanLoading && !theirstackLoading && !urlscanResult && !theirstackResult && !urlscanError && !theirstackError && (
+                  <Card sx={{ height: '100%', minHeight: '400px', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: 4, textAlign: 'center', gap: 2 }}>
+                    <RotateCw size={48} style={{ color: '#D0BCFF', opacity: 0.8 }} />
+                    <Typography variant="h6">Integrations Diagnostic Panel</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '400px' }}>
+                      Perform a diagnostic query on the left. You can test URLScan (Company to Technologies) or TheirStack (Technology to Companies). The results will appear here in real-time.
+                    </Typography>
+                  </Card>
+                )}
+
+                {/* Loading state */}
+                {(urlscanLoading || theirstackLoading) && (
+                  <Card sx={{ height: '100%', minHeight: '400px', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: 4, gap: 3 }}>
+                    <CircularProgress size={48} thickness={4} color="primary" />
+                    <Typography variant="subtitle1" fontWeight="600" color="text.primary">
+                      {urlscanLoading ? 'Querying URLScan.io...' : 'Querying TheirStack...'}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Communicating with third-party servers...
+                    </Typography>
+                  </Card>
+                )}
+
+                {/* Error Alert Display */}
+                {urlscanError && (
+                  <Alert severity="error" sx={{ borderRadius: '12px' }}>
+                    {urlscanError}
+                  </Alert>
+                )}
+                {theirstackError && (
+                  <Alert severity="error" sx={{ borderRadius: '12px' }}>
+                    {theirstackError}
+                  </Alert>
+                )}
+
+                {/* URLScan test results */}
+                {urlscanResult && !urlscanLoading && (
+                  <Card sx={{ backgroundColor: 'background.paper', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 3 }}>
+                    <Typography variant="h6" color="primary" gutterBottom>
+                      URLScan.io Result
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                      Scan UUID: <code>{urlscanResult.uuid || 'N/A'}</code>
+                    </Typography>
+
+                    {urlscanResult.technologies && urlscanResult.technologies.length > 0 ? (
+                      <TableContainer component={Paper} sx={{ backgroundColor: 'transparent', backgroundImage: 'none', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                        <Table size="small">
+                          <TableHead sx={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+                            <TableRow>
+                              <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Technology Name</TableCell>
+                              <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Categories</TableCell>
+                              <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Version</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {urlscanResult.technologies.map((tech, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell sx={{ fontWeight: 600 }}>{tech.name}</TableCell>
+                                <TableCell>
+                                  {tech.categories && tech.categories.length > 0 ? (
+                                    tech.categories.map((c, i) => (
+                                      <Chip key={i} label={c} size="small" variant="outlined" sx={{ borderRadius: '4px', fontSize: '0.65rem', mr: 0.5 }} />
+                                    ))
+                                  ) : (
+                                    'N/A'
+                                  )}
+                                </TableCell>
+                                <TableCell color="text.secondary">{tech.version || 'Unknown'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No technologies detected on this domain.
+                      </Typography>
+                    )}
+                  </Card>
+                )}
+
+                {/* TheirStack test results */}
+                {theirstackResult && !theirstackLoading && (
+                  <Card sx={{ backgroundColor: 'background.paper', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.08)', padding: 3 }}>
+                    <Typography variant="h6" color="primary" gutterBottom>
+                      TheirStack Result (Companies using tech)
+                    </Typography>
+
+                    {theirstackResult.companies && theirstackResult.companies.length > 0 ? (
+                      <TableContainer component={Paper} sx={{ backgroundColor: 'transparent', backgroundImage: 'none', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                        <Table size="small">
+                          <TableHead sx={{ backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+                            <TableRow>
+                              <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Company Name</TableCell>
+                              <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Domain</TableCell>
+                              <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Industry</TableCell>
+                              <TableCell sx={{ color: 'text.secondary', fontWeight: 600 }}>Location</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {theirstackResult.companies.map((company, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell sx={{ fontWeight: 600 }}>{company.name}</TableCell>
+                                <TableCell>
+                                  <a href={`https://${company.domain}`} target="_blank" rel="noopener noreferrer" style={{ color: '#D0BCFF', textDecoration: 'none' }}>
+                                    {company.domain}
+                                  </a>
+                                </TableCell>
+                                <TableCell>{company.industry}</TableCell>
+                                <TableCell>{company.country}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">
+                        No companies found using this technology.
+                      </Typography>
+                    )}
+                  </Card>
+                )}
+              </Box>
+            )}
+
             {/* Welcoming state */}
             {activeTab === 'companies' && companyResults.length === 0 && !companyLoading && (
               <Card sx={{ height: '100%', border: '1px solid rgba(255, 255, 255, 0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', p: 4, textAlign: 'center', gap: 2 }}>
