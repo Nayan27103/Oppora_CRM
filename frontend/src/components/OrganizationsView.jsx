@@ -86,6 +86,7 @@ export default function OrganizationsView({ user, activeOrg, setActiveOrg, refre
           localStorage.setItem('active_org_id', res.data.id);
           refreshAllData();
         }
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Organization created successfully!' } }));
       }
     } catch (err) {
       setOrgError(err.data?.errors?.name?.[0] || err.data?.message || 'Failed to create organization');
@@ -105,6 +106,7 @@ export default function OrganizationsView({ user, activeOrg, setActiveOrg, refre
         await fetchOrgs();
         setActiveOrg(res.data || { ...activeOrg, name: editName.trim() });
         refreshAllData();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Organization renamed successfully!' } }));
       }
     } catch (err) {
       setOrgError(err.data?.message || 'Failed to rename organization');
@@ -134,6 +136,7 @@ export default function OrganizationsView({ user, activeOrg, setActiveOrg, refre
             refreshAllData();
           }
         }
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Organization deleted successfully!' } }));
       }
     } catch (err) {
       setOrgError(err.data?.message || 'Failed to delete organization');
@@ -155,6 +158,7 @@ export default function OrganizationsView({ user, activeOrg, setActiveOrg, refre
         setInviteRole('MEMBER');
         setInviteSuccess('Member added successfully!');
         fetchMembers(activeOrg.id);
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Team member added successfully!' } }));
       }
     } catch (err) {
       setMemberError(err.data?.errors?.user_email?.[0] || err.data?.message || 'Failed to add member');
@@ -167,6 +171,7 @@ export default function OrganizationsView({ user, activeOrg, setActiveOrg, refre
       const res = await api.updateTeamMember(memberId, newRole);
       if (res.success) {
         fetchMembers(activeOrg.id);
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Member role updated successfully!' } }));
       }
     } catch (err) {
       setMemberError(err.data?.message || 'Failed to update member role');
@@ -181,6 +186,7 @@ export default function OrganizationsView({ user, activeOrg, setActiveOrg, refre
       const res = await api.deleteTeamMember(memberId);
       if (res.success) {
         fetchMembers(activeOrg.id);
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Member removed successfully!' } }));
       }
     } catch (err) {
       setMemberError(err.data?.message || 'Failed to remove member');

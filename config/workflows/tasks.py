@@ -153,14 +153,26 @@ def run_node_action(node, obj):
         recipient_user = None
         recipient_email = None
 
-        if recipient_type == 'contact':
-            # Get associated contact
+        # Resolve target object to a Contact / Organization
+        contact = None
+        lead_obj = None
+        from leads.models import Lead
+        if isinstance(obj, Lead):
+            lead_obj = obj
+        elif hasattr(obj, 'lead') and isinstance(obj.lead, Lead):
+            lead_obj = obj.lead
+
+        if lead_obj:
+            contact = lead_obj.contact
+
+        # Fallback to direct attribute check
+        if not contact:
             contact = getattr(obj, 'contact', None)
+
+        if recipient_type == 'contact':
             if contact:
                 recipient_email = contact.email
         elif recipient_type == 'owner':
-            # Get organization owner
-            contact = getattr(obj, 'contact', None)
             if contact and contact.organization:
                 recipient_user = contact.organization.owner
                 recipient_email = recipient_user.email
@@ -310,7 +322,9 @@ def execute_workflow_task(self, workflow_id, context):
 
     except Exception as exc:
         logger.exception(f"Workflow execution failed: {exc}")
-        run.status = 'FAILED'
-        run.error_message = str(exc)
-        run.completed_at = timezone.now()
-        run.save(update_fields=['status', 'error_message', 'completed_at'])
+        if 'run' in locals() and run:
+            run.status = 'FAILED'
+            run.error_message = str(exc)
+            run.execution_log = logs if 'logs' in locals() else []
+            run.completed_at = timezone.now()
+            run.save(update_fields=['status', 'error_message', 'execution_log', 'completed_at'])

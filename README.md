@@ -82,7 +82,7 @@ python config/manage.py runserver
 
 '''celery  run
 celery -A config worker --loglevel=info --pool=solo
-celery -A config worker --loglevel=info --pool=solo -Q celery,notifications,emails,ai
+celery -A config worker --loglevel=info --pool=solo -Q celery,notifications,emails,ai,workflow
 '''
 
 

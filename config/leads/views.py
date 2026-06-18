@@ -13,12 +13,29 @@ class LeadCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         serializer = LeadSerializer(
             data=request.data
         )
 
         if serializer.is_valid():
+            # Validate that the target contact belongs to the active organization
+            contact = serializer.validated_data.get("contact")
+            if not contact or contact.organization != active_org:
+                return Response({
+                    "success": False,
+                    "message": "Contact does not belong to your active organization."
+                }, status=403)
 
             lead = serializer.save()
 
@@ -43,9 +60,18 @@ class LeadListView(APIView):
 
     def get(self, request):
         from common.responses import success_response
-        from common.utils import get_active_org
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
 
         active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
+
         status = request.GET.get("status")
 
         if active_org:
@@ -76,9 +102,19 @@ class LeadUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         try:
-            lead = Lead.objects.get(id=pk)
+            lead = Lead.objects.get(id=pk, contact__organization=active_org)
 
         except Lead.DoesNotExist:
 
@@ -113,9 +149,19 @@ class LeadDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN']):
+            return permission_denied_response()
 
         try:
-            lead = Lead.objects.get(id=pk)
+            lead = Lead.objects.get(id=pk, contact__organization=active_org)
 
         except Lead.DoesNotExist:
 
@@ -138,6 +184,16 @@ class LeadBulkUpdateView(APIView):
     ]
     @transaction.atomic
     def patch(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         leads_data = request.data
 
@@ -166,7 +222,8 @@ class LeadBulkUpdateView(APIView):
             )
 
         leads = Lead.objects.filter(
-            id__in=lead_ids
+            id__in=lead_ids,
+            contact__organization=active_org
         )
 
         lead_map = {
@@ -211,9 +268,18 @@ class LeadStatsView(APIView):
         from django.core.cache import cache
         from common.responses import success_response
         from django.db.models import Count
-        from common.utils import get_active_org
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
 
         active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
+
         active_org_id = active_org.id if active_org else 0
         cache_key = f"lead_stats_data_{request.user.id}_{active_org_id}"
         data = cache.get(cache_key)

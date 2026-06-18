@@ -21,3 +21,24 @@ def get_active_org(request):
 
     # Fallback to the first organization the user is a member of
     return Organization.objects.filter(members__user=request.user).first()
+
+
+def check_user_permission(request, active_org, allowed_roles):
+    """
+    Checks if the authenticated user has one of the allowed roles in the active organization.
+    """
+    if not request.user or not request.user.is_authenticated or not active_org:
+        return False
+    from organizations.models import TeamMember
+    member = TeamMember.objects.filter(organization=active_org, user=request.user).first()
+    if not member:
+        return False
+    return member.role in allowed_roles
+
+
+def permission_denied_response(message="Permission denied for this action"):
+    from rest_framework.response import Response
+    return Response({
+        "success": False,
+        "message": message
+    }, status=403)

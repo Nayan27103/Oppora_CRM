@@ -165,7 +165,7 @@ const TaskNodeComponent = ({ data }) => {
   );
 };
 
-export default function WorkflowsView({ activeOrg }) {
+export default function WorkflowsView({ activeOrg, userRole }) {
   const [workflows, setWorkflows] = useState([]);
   const [runs, setRuns] = useState([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState(null);
@@ -236,8 +236,9 @@ export default function WorkflowsView({ activeOrg }) {
 
   // Handle adding connection between nodes
   const onConnect = useCallback((params) => {
+    if (userRole === 'MEMBER') return;
     setEdges((eds) => addEdge({ ...params, animated: true, style: { stroke: 'hsl(var(--color-primary-hover))' } }, eds));
-  }, [setEdges]);
+  }, [setEdges, userRole]);
 
   // Open designer canvas for editing workflow
   const handleEditWorkflow = (workflow) => {
@@ -251,6 +252,7 @@ export default function WorkflowsView({ activeOrg }) {
 
   // Save changes to layout (nodes/edges/status/etc.)
   const handleSaveWorkflow = async () => {
+    if (userRole === 'MEMBER') return;
     if (!selectedWorkflow) return;
     setLoading(true);
     setActionError('');
@@ -268,6 +270,7 @@ export default function WorkflowsView({ activeOrg }) {
         setActionSuccess("Workflow saved successfully.");
         // Refresh list
         fetchWorkflows();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Workflow saved successfully!' } }));
       }
     } catch (err) {
       console.error(err);
@@ -280,6 +283,7 @@ export default function WorkflowsView({ activeOrg }) {
   // Create workflow handler
   const handleCreateWorkflow = async (e) => {
     e.preventDefault();
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') return;
     if (!newWorkflowName.trim()) return;
     
     setLoading(true);
@@ -309,6 +313,7 @@ export default function WorkflowsView({ activeOrg }) {
         setNewWorkflowDesc('');
         // Open the newly created workflow directly
         handleEditWorkflow(res.data);
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Workflow created successfully!' } }));
       }
     } catch (err) {
       console.error(err);
@@ -320,6 +325,7 @@ export default function WorkflowsView({ activeOrg }) {
 
   // Delete workflow
   const handleDeleteWorkflow = async (id) => {
+    if (userRole !== 'ADMIN') return;
     if (!window.confirm("Are you sure you want to delete this workflow? This action cannot be undone.")) return;
     try {
       const res = await api.deleteWorkflow(id);
@@ -329,6 +335,7 @@ export default function WorkflowsView({ activeOrg }) {
           setCurrentTab('list');
           setSelectedWorkflow(null);
         }
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Workflow deleted successfully!' } }));
       }
     } catch (err) {
       console.error(err);
@@ -338,6 +345,7 @@ export default function WorkflowsView({ activeOrg }) {
 
   // Drag-and-drop / node adder helper
   const addNodeToCanvas = (type) => {
+    if (userRole === 'MEMBER') return;
     const id = `node_${type}_${Date.now()}`;
     let defaultData = { label: type };
 
@@ -380,6 +388,7 @@ export default function WorkflowsView({ activeOrg }) {
 
   // Delete node from canvas
   const deleteNodeFromCanvas = (nodeId) => {
+    if (userRole === 'MEMBER') return;
     setNodes((nds) => nds.filter((n) => n.id !== nodeId));
     setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
     if (selectedNodeId === nodeId) {
@@ -389,6 +398,7 @@ export default function WorkflowsView({ activeOrg }) {
 
   // Update properties on node from Property Sidebar
   const updateNodeData = (nodeId, key, value) => {
+    if (userRole === 'MEMBER') return;
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === nodeId) {
@@ -436,7 +446,7 @@ export default function WorkflowsView({ activeOrg }) {
               <ArrowLeft size={16} /> Back
             </button>
           )}
-          <h2 style={{ fontSize: '1.75rem', fontFamily: 'var(--font-display)', background: 'linear-gradient(135deg, #fff 40%, hsl(var(--color-primary)) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <h2 style={{ fontSize: '1.75rem', fontFamily: 'var(--font-display)', background: 'linear-gradient(135deg, hsl(var(--text-primary)) 40%, hsl(var(--color-primary)) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             {currentTab === 'list' && 'CRM Automation Workflows'}
             {currentTab === 'edit' && `Edit Workflow: ${selectedWorkflow?.name}`}
             {currentTab === 'runs' && 'Execution Logs Audit'}
@@ -453,46 +463,52 @@ export default function WorkflowsView({ activeOrg }) {
               >
                 <Activity size={16} /> View All Logs
               </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => setCreateModalOpen(true)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Plus size={16} /> New Workflow
-              </button>
+              {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => setCreateModalOpen(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Plus size={16} /> New Workflow
+                </button>
+              )}
             </>
           )}
 
           {currentTab === 'edit' && (
             <>
-              <button 
-                className={`btn ${selectedWorkflow?.is_active ? 'btn-danger' : 'btn-success'}`}
-                onClick={() => {
-                  setSelectedWorkflow({
-                    ...selectedWorkflow,
-                    is_active: !selectedWorkflow.is_active
-                  });
-                }}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                {selectedWorkflow?.is_active ? (
-                  <>
-                    <ToggleRight size={18} /> Deactivate
-                  </>
-                ) : (
-                  <>
-                    <ToggleLeft size={18} /> Activate
-                  </>
-                )}
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleSaveWorkflow}
-                disabled={loading}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Save size={16} /> Save Workflow
-              </button>
+              {userRole !== 'MEMBER' && (
+                <button 
+                  className={`btn ${selectedWorkflow?.is_active ? 'btn-danger' : 'btn-success'}`}
+                  onClick={() => {
+                    setSelectedWorkflow({
+                      ...selectedWorkflow,
+                      is_active: !selectedWorkflow.is_active
+                    });
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  {selectedWorkflow?.is_active ? (
+                    <>
+                      <ToggleRight size={18} /> Deactivate
+                    </>
+                  ) : (
+                    <>
+                      <ToggleLeft size={18} /> Activate
+                    </>
+                  )}
+                </button>
+              )}
+              {userRole !== 'MEMBER' && (
+                <button 
+                  className="btn btn-primary" 
+                  onClick={handleSaveWorkflow}
+                  disabled={loading}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  <Save size={16} /> Save Workflow
+                </button>
+              )}
             </>
           )}
         </div>
@@ -543,11 +559,13 @@ export default function WorkflowsView({ activeOrg }) {
                 
                 <div style={{ display: 'flex', gap: '10px', marginTop: '1rem', borderTop: '1px solid hsl(var(--border-color))', paddingTop: '12px' }}>
                   <button className="btn btn-secondary" onClick={() => handleEditWorkflow(wf)} style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                    <Settings size={14} /> Open Builder
+                    <Settings size={14} /> {userRole === 'MEMBER' ? 'Inspect Builder' : 'Open Builder'}
                   </button>
-                  <button className="btn btn-danger" onClick={() => handleDeleteWorkflow(wf.id)} style={{ padding: '8px' }}>
-                    <Trash2 size={14} />
-                  </button>
+                  {userRole === 'ADMIN' && (
+                    <button className="btn btn-danger" onClick={() => handleDeleteWorkflow(wf.id)} style={{ padding: '8px' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -560,26 +578,35 @@ export default function WorkflowsView({ activeOrg }) {
         <div style={{ display: 'flex', flexGrow: 1, border: '1px solid hsl(var(--border-color))', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: '#09080e', position: 'relative', height: '600px' }}>
           
           {/* Node Palette panel (left) */}
-          <div style={{ width: '220px', borderRight: '1px solid hsl(var(--border-color))', background: 'rgba(12, 11, 18, 0.95)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '12px', zIndex: 10 }}>
-            <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'hsl(var(--text-secondary))', marginBottom: '6px' }}>Add Nodes</h4>
-            
-            <button className="btn btn-secondary" onClick={() => addNodeToCanvas('crmTrigger')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', width: '100%', textAlign: 'left', borderLeft: '3px solid rgb(147, 51, 234)' }}>
-              <Play size={14} style={{ color: 'rgb(147, 51, 234)' }} /> Trigger Node
-            </button>
-            <button className="btn btn-secondary" onClick={() => addNodeToCanvas('conditionBlock')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', width: '100%', textAlign: 'left', borderLeft: '3px solid rgb(249, 115, 22)' }}>
-              <Settings size={14} style={{ color: 'rgb(249, 115, 22)' }} /> Condition (If)
-            </button>
-            <button className="btn btn-secondary" onClick={() => addNodeToCanvas('sendEmail')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', width: '100%', textAlign: 'left', borderLeft: '3px solid rgb(14, 165, 233)' }}>
-              <Mail size={14} style={{ color: 'rgb(14, 165, 233)' }} /> Send Email Action
-            </button>
-            <button className="btn btn-secondary" onClick={() => addNodeToCanvas('createTask')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', width: '100%', textAlign: 'left', borderLeft: '3px solid rgb(34, 197, 94)' }}>
-              <CheckSquare size={14} style={{ color: 'rgb(34, 197, 94)' }} /> Create Task Action
-            </button>
-            
-            <div style={{ marginTop: 'auto', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
-              <strong>Tip:</strong> Drag edges from handles to connect triggers to conditions or actions. Delete selected nodes with the editor sidebar button.
+          {userRole !== 'MEMBER' ? (
+            <div style={{ width: '220px', borderRight: '1px solid hsl(var(--border-color))', background: 'rgba(12, 11, 18, 0.95)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '12px', zIndex: 10 }}>
+              <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'hsl(var(--text-secondary))', marginBottom: '6px' }}>Add Nodes</h4>
+              
+              <button className="btn btn-secondary" onClick={() => addNodeToCanvas('crmTrigger')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', width: '100%', textAlign: 'left', borderLeft: '3px solid rgb(147, 51, 234)' }}>
+                <Play size={14} style={{ color: 'rgb(147, 51, 234)' }} /> Trigger Node
+              </button>
+              <button className="btn btn-secondary" onClick={() => addNodeToCanvas('conditionBlock')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', width: '100%', textAlign: 'left', borderLeft: '3px solid rgb(249, 115, 22)' }}>
+                <Settings size={14} style={{ color: 'rgb(249, 115, 22)' }} /> Condition (If)
+              </button>
+              <button className="btn btn-secondary" onClick={() => addNodeToCanvas('sendEmail')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', width: '100%', textAlign: 'left', borderLeft: '3px solid rgb(14, 165, 233)' }}>
+                <Mail size={14} style={{ color: 'rgb(14, 165, 233)' }} /> Send Email Action
+              </button>
+              <button className="btn btn-secondary" onClick={() => addNodeToCanvas('createTask')} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', width: '100%', textAlign: 'left', borderLeft: '3px solid rgb(34, 197, 94)' }}>
+                <CheckSquare size={14} style={{ color: 'rgb(34, 197, 94)' }} /> Create Task Action
+              </button>
+              
+              <div style={{ marginTop: 'auto', padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
+                <strong>Tip:</strong> Drag edges from handles to connect triggers to conditions or actions. Delete selected nodes with the editor sidebar button.
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ width: '220px', borderRight: '1px solid hsl(var(--border-color))', background: 'rgba(12, 11, 18, 0.95)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '12px', zIndex: 10 }}>
+              <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'hsl(var(--text-secondary))', marginBottom: '6px' }}>Builder Info</h4>
+              <div style={{ padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
+                <strong>Read-Only Mode:</strong> As a Member, you can view the workflow structure and inspect the node configurations but cannot make changes.
+              </div>
+            </div>
+          )}
 
           {/* Visual Canvas (middle) */}
           <div style={{ flexGrow: 1, position: 'relative', height: '100%' }}>
@@ -588,9 +615,12 @@ export default function WorkflowsView({ activeOrg }) {
               edges={edges}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
+              onConnect={userRole === 'MEMBER' ? undefined : onConnect}
               onNodeClick={onNodeClick}
               nodeTypes={nodeTypes}
+              nodesDraggable={userRole !== 'MEMBER'}
+              nodesConnectable={userRole !== 'MEMBER'}
+              elementsSelectable={true}
               fitView
             >
               <Controls />
@@ -602,7 +632,7 @@ export default function WorkflowsView({ activeOrg }) {
           <div style={{ width: '280px', borderLeft: '1px solid hsl(var(--border-color))', background: 'rgba(12, 11, 18, 0.95)', padding: '1.25rem', zIndex: 10, display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid hsl(var(--border-color))', paddingBottom: '8px' }}>
               <h4 style={{ fontSize: '0.9rem', fontWeight: '700' }}>Properties Sheet</h4>
-              {selectedNodeId && (
+              {selectedNodeId && userRole !== 'MEMBER' && (
                 <button 
                   onClick={() => deleteNodeFromCanvas(selectedNodeId)} 
                   style={{ background: 'none', border: 'none', color: 'hsl(var(--color-danger))', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
@@ -626,6 +656,7 @@ export default function WorkflowsView({ activeOrg }) {
                       className="form-input"
                       value={selectedNode.data.event || 'lead_created'}
                       onChange={(e) => updateNodeData(selectedNode.id, 'event', e.target.value)}
+                      disabled={userRole === 'MEMBER'}
                     >
                       <option value="lead_created">Lead Created</option>
                       <option value="deal_stage_updated">Deal Stage Updated</option>
@@ -652,6 +683,7 @@ export default function WorkflowsView({ activeOrg }) {
                         value={selectedNode.data.field || ''} 
                         placeholder="score"
                         onChange={(e) => updateNodeData(selectedNode.id, 'field', e.target.value)}
+                        disabled={userRole === 'MEMBER'}
                       />
                     </div>
 
@@ -661,6 +693,7 @@ export default function WorkflowsView({ activeOrg }) {
                         className="form-input"
                         value={selectedNode.data.operator || '=='}
                         onChange={(e) => updateNodeData(selectedNode.id, 'operator', e.target.value)}
+                        disabled={userRole === 'MEMBER'}
                       >
                         <option value="==">Equals (==)</option>
                         <option value="!=">Not Equals (!=)</option>
@@ -678,6 +711,7 @@ export default function WorkflowsView({ activeOrg }) {
                         value={selectedNode.data.value || ''} 
                         placeholder="80"
                         onChange={(e) => updateNodeData(selectedNode.id, 'value', e.target.value)}
+                        disabled={userRole === 'MEMBER'}
                       />
                     </div>
                   </div>
@@ -696,6 +730,7 @@ export default function WorkflowsView({ activeOrg }) {
                         className="form-input"
                         value={selectedNode.data.recipient_type || 'contact'}
                         onChange={(e) => updateNodeData(selectedNode.id, 'recipient_type', e.target.value)}
+                        disabled={userRole === 'MEMBER'}
                       >
                         <option value="contact">Contact (Prospect's email)</option>
                         <option value="owner">Workspace Owner (Your sales rep)</option>
@@ -712,6 +747,7 @@ export default function WorkflowsView({ activeOrg }) {
                           placeholder="recipient@domain.com"
                           value={selectedNode.data.custom_email || ''} 
                           onChange={(e) => updateNodeData(selectedNode.id, 'custom_email', e.target.value)}
+                          disabled={userRole === 'MEMBER'}
                         />
                       </div>
                     )}
@@ -724,6 +760,7 @@ export default function WorkflowsView({ activeOrg }) {
                         placeholder="Subject..."
                         value={selectedNode.data.subject || ''} 
                         onChange={(e) => updateNodeData(selectedNode.id, 'subject', e.target.value)}
+                        disabled={userRole === 'MEMBER'}
                       />
                     </div>
 
@@ -736,6 +773,7 @@ export default function WorkflowsView({ activeOrg }) {
                         value={selectedNode.data.body || ''} 
                         onChange={(e) => updateNodeData(selectedNode.id, 'body', e.target.value)}
                         style={{ resize: 'vertical' }}
+                        disabled={userRole === 'MEMBER'}
                       />
                     </div>
                   </div>
@@ -756,6 +794,7 @@ export default function WorkflowsView({ activeOrg }) {
                         placeholder="Call new lead..."
                         value={selectedNode.data.title || ''} 
                         onChange={(e) => updateNodeData(selectedNode.id, 'title', e.target.value)}
+                        disabled={userRole === 'MEMBER'}
                       />
                     </div>
 
@@ -765,6 +804,7 @@ export default function WorkflowsView({ activeOrg }) {
                         className="form-input"
                         value={selectedNode.data.activity_type || 'TASK'}
                         onChange={(e) => updateNodeData(selectedNode.id, 'activity_type', e.target.value)}
+                        disabled={userRole === 'MEMBER'}
                       >
                         <option value="TASK">Task Checklist</option>
                         <option value="CALL">Phone Call</option>
@@ -780,6 +820,7 @@ export default function WorkflowsView({ activeOrg }) {
                         min={1}
                         value={selectedNode.data.days_due || 1} 
                         onChange={(e) => updateNodeData(selectedNode.id, 'days_due', parseInt(e.target.value) || 1)}
+                        disabled={userRole === 'MEMBER'}
                       />
                     </div>
 
@@ -792,6 +833,7 @@ export default function WorkflowsView({ activeOrg }) {
                         value={selectedNode.data.description || ''} 
                         onChange={(e) => updateNodeData(selectedNode.id, 'description', e.target.value)}
                         style={{ resize: 'vertical' }}
+                        disabled={userRole === 'MEMBER'}
                       />
                     </div>
                   </div>

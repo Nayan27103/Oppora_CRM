@@ -35,4 +35,14 @@ class WorkflowRunSerializer(serializers.ModelSerializer):
             'started_at',
             'completed_at'
         ]
-        read_only_fields = ['__all__']
+        read_only_fields = [
+            'id',
+            'workflow',
+            'workflow_name',
+            'status',
+            'trigger_context',
+            'execution_log',
+            'error_message',
+            'started_at',
+            'completed_at'
+        ]

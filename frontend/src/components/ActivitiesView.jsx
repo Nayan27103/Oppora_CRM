@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 import { Plus, Trash2, Calendar, Phone, Users, CheckSquare, Square, FileText, X, Edit, RotateCcw } from 'lucide-react';
 
-export default function ActivitiesView({ activeOrg }) {
+export default function ActivitiesView({ activeOrg, userRole }) {
   const [activities, setActivities] = useState([]);
   const [deletedActivities, setDeletedActivities] = useState([]);
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'deleted'
@@ -117,6 +117,7 @@ export default function ActivitiesView({ activeOrg }) {
           completed: false
         });
         refreshData();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Activity created successfully!' } }));
       }
     } catch (err) {
       setFormError(err.data?.message || JSON.stringify(err.data) || 'Failed to create activity');
@@ -124,6 +125,7 @@ export default function ActivitiesView({ activeOrg }) {
   };
 
   const toggleComplete = async (activity) => {
+    if (userRole === 'MEMBER') return;
     try {
       // Optimistic update
       setActivities(prev => prev.map(a => a.id === activity.id ? { ...a, completed: !a.completed } : a));
@@ -131,6 +133,7 @@ export default function ActivitiesView({ activeOrg }) {
       const res = await api.updateActivity(activity.id, { completed: !activity.completed });
       if (res.success) {
         fetchActivities();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `Activity marked as ${activity.completed ? 'incomplete' : 'completed'}!` } }));
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to update activity completion');
@@ -139,11 +142,16 @@ export default function ActivitiesView({ activeOrg }) {
   };
 
   const handleDelete = async (id) => {
+    if (userRole !== 'ADMIN') {
+      alert('Only administrators can delete activities.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this activity?')) return;
     try {
       const res = await api.deleteActivity(id);
       if (res.success) {
         fetchActivities();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Activity deleted successfully!' } }));
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to delete activity');
@@ -151,10 +159,15 @@ export default function ActivitiesView({ activeOrg }) {
   };
 
   const handleRestore = async (id) => {
+    if (userRole === 'MEMBER') {
+      alert('You do not have permission to restore activities.');
+      return;
+    }
     try {
       const res = await api.restoreActivity(id);
       if (res.success) {
         fetchDeletedActivities();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Activity restored successfully!' } }));
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to restore activity');
@@ -162,11 +175,16 @@ export default function ActivitiesView({ activeOrg }) {
   };
 
   const handlePermanentDelete = async (id) => {
+    if (userRole !== 'ADMIN') {
+      alert('Only administrators can permanently delete activities.');
+      return;
+    }
     if (!confirm('Are you sure you want to PERMANENTLY delete this activity? This cannot be undone.')) return;
     try {
       const res = await api.deleteActivity(id);
       if (res.success) {
         fetchDeletedActivities();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Activity permanently deleted!' } }));
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to permanently delete activity');
@@ -217,6 +235,7 @@ export default function ActivitiesView({ activeOrg }) {
         setShowEditModal(false);
         setEditingActivityId(null);
         fetchActivities();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Activity updated successfully!' } }));
       }
     } catch (err) {
       setFormError(err.data?.message || JSON.stringify(err.data) || 'Failed to update activity');
@@ -239,12 +258,14 @@ export default function ActivitiesView({ activeOrg }) {
           <h1 style={{ fontFamily: 'var(--font-display)' }}>Activities & Tasks</h1>
           <p style={{ color: 'hsl(var(--text-secondary))' }}>Schedule calls, meetings, notes, and checklist items</p>
         </div>
-        <button className="btn btn-primary" onClick={() => {
-          setFormError('');
-          setShowCreateModal(true);
-        }}>
-          <Plus size={16} /> Add Activity
-        </button>
+        {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+          <button className="btn btn-primary" onClick={() => {
+            setFormError('');
+            setShowCreateModal(true);
+          }}>
+            <Plus size={16} /> Add Activity
+          </button>
+        )}
       </div>
 
       {/* Sub Tabs Navigation */}
@@ -265,22 +286,24 @@ export default function ActivitiesView({ activeOrg }) {
         >
           Active Activities
         </button>
-        <button
-          onClick={() => setActiveTab('deleted')}
-          style={{
-            background: 'none',
-            border: 'none',
-            borderBottom: activeTab === 'deleted' ? '2px solid hsl(var(--color-primary))' : '2px solid transparent',
-            color: activeTab === 'deleted' ? 'hsl(var(--text-main))' : 'hsl(var(--text-secondary))',
-            padding: '8px 16px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '0.95rem',
-            transition: 'all 0.2s ease'
-          }}
-        >
-          Delete History
-        </button>
+        {userRole !== 'MEMBER' && (
+          <button
+            onClick={() => setActiveTab('deleted')}
+            style={{
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === 'deleted' ? '2px solid hsl(var(--color-primary))' : '2px solid transparent',
+              color: activeTab === 'deleted' ? 'hsl(var(--text-main))' : 'hsl(var(--text-secondary))',
+              padding: '8px 16px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '0.95rem',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            Delete History
+          </button>
+        )}
       </div>
 
       <div className="glass-panel" style={{ padding: '1rem' }}>
@@ -308,12 +331,18 @@ export default function ActivitiesView({ activeOrg }) {
                   <tr key={a.id} style={{ opacity: a.completed ? 0.6 : 1 }}>
                     <td>
                       {activeTab === 'active' ? (
-                        <button
-                          onClick={() => toggleComplete(a)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'hsl(var(--color-primary))' }}
-                        >
-                          {a.completed ? <CheckSquare size={20} /> : <Square size={20} />}
-                        </button>
+                        userRole === 'MEMBER' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', color: 'hsl(var(--text-muted))', padding: '0 8px' }}>
+                            {a.completed ? <CheckSquare size={20} /> : <Square size={20} />}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => toggleComplete(a)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'hsl(var(--color-primary))' }}
+                          >
+                            {a.completed ? <CheckSquare size={20} /> : <Square size={20} />}
+                          </button>
+                        )
                       ) : (
                         <span className={`badge ${a.completed ? 'badge-success' : 'badge-secondary'}`} style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
                           {a.completed ? 'Done' : 'Pending'}
@@ -339,37 +368,45 @@ export default function ActivitiesView({ activeOrg }) {
                       <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                         {activeTab === 'active' ? (
                           <>
-                            <button
-                              onClick={() => startEditActivity(a)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-primary-hover))' }}
-                              title="Edit Activity"
-                            >
-                              <Edit size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(a.id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
-                              title="Delete Activity"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {userRole !== 'MEMBER' && (
+                              <button
+                                onClick={() => startEditActivity(a)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-primary-hover))' }}
+                                title="Edit Activity"
+                              >
+                                <Edit size={16} />
+                              </button>
+                            )}
+                            {userRole === 'ADMIN' && (
+                              <button
+                                onClick={() => handleDelete(a.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
+                                title="Delete Activity"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </>
                         ) : (
                           <>
-                            <button
-                              onClick={() => handleRestore(a.id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-success))' }}
-                              title="Restore Activity"
-                            >
-                              <RotateCcw size={16} />
-                            </button>
-                            <button
-                              onClick={() => handlePermanentDelete(a.id)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
-                              title="Delete Permanently"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {userRole !== 'MEMBER' && (
+                              <button
+                                onClick={() => handleRestore(a.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-success))' }}
+                                title="Restore Activity"
+                              >
+                                <RotateCcw size={16} />
+                              </button>
+                            )}
+                            {userRole === 'ADMIN' && (
+                              <button
+                                onClick={() => handlePermanentDelete(a.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
+                                title="Delete Permanently"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>

@@ -19,7 +19,10 @@ import {
   X,
   Search,
   Shield,
-  Cpu
+  Cpu,
+  Sun,
+  Moon,
+  Check
 } from 'lucide-react';
 
 // View Imports
@@ -34,10 +37,46 @@ import NotificationsView from './components/NotificationsView';
 import FinderPage from './components/FinderPage';
 import AdminPanelView from './components/AdminPanelView';
 import WorkflowsView from './components/WorkflowsView';
+import GlobalChatbot from './components/GlobalChatbot';
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('theme') || 'light';
+  });
+
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+
+  useEffect(() => {
+    const handleToast = (e) => {
+      if (e.detail) {
+        setToast({ show: true, message: e.detail.message, type: e.detail.type || 'success' });
+      }
+    };
+    window.addEventListener('show-toast', handleToast);
+    return () => window.removeEventListener('show-toast', handleToast);
+  }, []);
+
+  useEffect(() => {
+    if (toast.show) {
+      const timer = setTimeout(() => {
+        setToast(prev => ({ ...prev, show: false }));
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast.show]);
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
   const [activeOrg, setActiveOrg] = useState(null);
+  const [userRole, setUserRole] = useState('MEMBER');
   const [activeView, setActiveView] = useState('dashboard');
   const [loading, setLoading] = useState(true);
 
@@ -65,6 +104,30 @@ export default function App() {
 
   // Responsive Sidebar Toggle
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (activeOrg && user) {
+        try {
+          const res = await api.getTeamMembers(activeOrg.id);
+          if (res.success) {
+            const member = res.data.find(m => m.user_email === user.email);
+            if (member) {
+              setUserRole(member.role);
+            } else {
+              setUserRole('MEMBER');
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch user role:", err);
+          setUserRole('MEMBER');
+        }
+      } else {
+        setUserRole('MEMBER');
+      }
+    };
+    fetchUserRole();
+  }, [activeOrg, user]);
 
   useEffect(() => {
     const path = window.location.pathname;
@@ -297,7 +360,7 @@ export default function App() {
       }}>
         <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', padding: '2.5rem', borderRadius: 'var(--radius-lg)' }}>
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: '2rem', fontFamily: 'var(--font-display)', background: 'linear-gradient(135deg, #fff 40%, hsl(var(--color-primary)) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <h2 style={{ fontSize: '2rem', fontFamily: 'var(--font-display)', background: 'linear-gradient(135deg, hsl(var(--text-primary)) 40%, hsl(var(--color-primary)) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               Oppora CRM
             </h2>
             <p style={{ color: 'hsl(var(--text-secondary))', marginTop: '6px', fontSize: '0.9rem' }}>
@@ -568,19 +631,19 @@ export default function App() {
       case 'organizations':
         return <OrganizationsView user={user} activeOrg={activeOrg} setActiveOrg={setActiveOrg} refreshAllData={refreshAllData} />;
       case 'contacts':
-        return <ContactsView activeOrg={activeOrg} />;
+        return <ContactsView activeOrg={activeOrg} userRole={userRole} />;
       case 'leads':
-        return <LeadsView activeOrg={activeOrg} />;
+        return <LeadsView activeOrg={activeOrg} userRole={userRole} />;
       case 'finder':
-        return <FinderPage activeOrg={activeOrg} onNavigate={(view) => setActiveView(view)} />;
+        return <FinderPage activeOrg={activeOrg} onNavigate={(view) => setActiveView(view)} theme={theme} userRole={userRole} />;
       case 'deals':
-        return <DealsView activeOrg={activeOrg} />;
+        return <DealsView activeOrg={activeOrg} userRole={userRole} />;
       case 'activities':
-        return <ActivitiesView activeOrg={activeOrg} />;
+        return <ActivitiesView activeOrg={activeOrg} userRole={userRole} />;
       case 'workflows':
-        return <WorkflowsView activeOrg={activeOrg} />;
+        return <WorkflowsView activeOrg={activeOrg} userRole={userRole} />;
       case 'ai-assistant':
-        return <AIAssistantView />;
+        return <AIAssistantView userRole={userRole} />;
       case 'notifications':
         return <NotificationsView />;
       case 'admin-panel':
@@ -607,7 +670,7 @@ export default function App() {
       >
         {/* Brand Head */}
         <div style={{ padding: '1.5rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid hsl(var(--border-color))' }}>
-          <span style={{ fontSize: '1.3rem', fontWeight: '800', fontFamily: 'var(--font-display)', background: 'linear-gradient(135deg, #fff 40%, hsl(var(--color-primary)) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <span style={{ fontSize: '1.3rem', fontWeight: '800', fontFamily: 'var(--font-display)', background: 'linear-gradient(135deg, hsl(var(--text-primary)) 40%, hsl(var(--color-primary)) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             Oppora CRM
           </span>
           <button onClick={() => setSidebarOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))', display: 'none' /* toggleable on responsive */ }}>
@@ -718,6 +781,16 @@ export default function App() {
               )}
             </div>
 
+            {/* Theme Toggle Button */}
+            <button 
+              onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px', borderRadius: '50%', transition: 'all 0.2s ease' }}
+              className="glass-panel-hover"
+              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {theme === 'dark' ? <Sun size={20} style={{ color: 'hsl(var(--color-warning))' }} /> : <Moon size={20} />}
+            </button>
+
             <div style={{ width: '1px', height: '20px', background: 'hsl(var(--border-color))' }}></div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -799,6 +872,33 @@ export default function App() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      <GlobalChatbot activeOrg={activeOrg} userRole={userRole} />
+
+      {/* Global Toast Notification */}
+      {toast.show && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '24px',
+            background: toast.type === 'success' ? 'hsl(var(--color-success))' : 'hsl(var(--color-danger))',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            zIndex: 10000,
+            fontSize: '0.9rem',
+            fontWeight: '600',
+            animation: 'fadeIn 0.2s ease-out'
+          }}
+        >
+          {toast.type === 'success' ? <Check size={16} /> : <X size={16} />}
+          <span>{toast.message}</span>
         </div>
       )}
     </div>

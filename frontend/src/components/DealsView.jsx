@@ -10,7 +10,7 @@ const STAGES = [
   { key: 'CLOSED_LOST', label: 'Closed Lost' }
 ];
 
-export default function DealsView({ activeOrg }) {
+export default function DealsView({ activeOrg, userRole }) {
   const [deals, setDeals] = useState([]);
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,15 +63,21 @@ export default function DealsView({ activeOrg }) {
   };
 
   const handleDragStart = (e, dealId) => {
+    if (userRole === 'MEMBER') {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData('text/plain', dealId);
   };
 
   const handleDragOver = (e) => {
+    if (userRole === 'MEMBER') return;
     e.preventDefault();
   };
 
   const handleDrop = async (e, targetStage) => {
     e.preventDefault();
+    if (userRole === 'MEMBER') return;
     const dealId = parseInt(e.dataTransfer.getData('text/plain'));
     if (!dealId) return;
 
@@ -82,6 +88,7 @@ export default function DealsView({ activeOrg }) {
       const res = await api.updateDeal(dealId, { stage: targetStage });
       if (res.success) {
         fetchDeals();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: `Deal stage updated to ${targetStage}` } }));
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to update deal stage');
@@ -133,12 +140,14 @@ export default function DealsView({ activeOrg }) {
         if (res.success) {
           setShowEditModal(false);
           fetchDeals();
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Deal updated successfully!' } }));
         }
       } else {
         const res = await api.createDeal(payload);
         if (res.success) {
           setShowCreateModal(false);
           fetchDeals();
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Deal created successfully!' } }));
         }
       }
     } catch (err) {
@@ -152,6 +161,7 @@ export default function DealsView({ activeOrg }) {
       const res = await api.deleteDeal(id);
       if (res.success) {
         fetchDeals();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Deal deleted successfully!' } }));
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to delete deal');
@@ -169,9 +179,11 @@ export default function DealsView({ activeOrg }) {
           <h1 style={{ fontFamily: 'var(--font-display)' }}>Deals Pipeline</h1>
           <p style={{ color: 'hsl(var(--text-secondary))' }}>Drag and drop deals between sales lifecycle stages</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreateModal}>
-          <Plus size={16} /> Add Deal
-        </button>
+        {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+          <button className="btn btn-primary" onClick={openCreateModal}>
+            <Plus size={16} /> Add Deal
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -205,7 +217,7 @@ export default function DealsView({ activeOrg }) {
                     <div
                       key={deal.id}
                       className="kanban-card"
-                      draggable
+                      draggable={userRole !== 'MEMBER'}
                       onDragStart={(e) => handleDragStart(e, deal.id)}
                       onClick={() => openEditModal(deal)}
                     >
@@ -349,6 +361,7 @@ export default function DealsView({ activeOrg }) {
                     value={formData.title}
                     onChange={e => setFormData({ ...formData, title: e.target.value })}
                     required
+                    disabled={userRole === 'MEMBER'}
                   />
                 </div>
 
@@ -360,6 +373,7 @@ export default function DealsView({ activeOrg }) {
                     value={formData.value}
                     onChange={e => setFormData({ ...formData, value: e.target.value })}
                     required
+                    disabled={userRole === 'MEMBER'}
                   />
                 </div>
 
@@ -369,6 +383,7 @@ export default function DealsView({ activeOrg }) {
                     className="form-select"
                     value={formData.stage}
                     onChange={e => setFormData({ ...formData, stage: e.target.value })}
+                    disabled={userRole === 'MEMBER'}
                   >
                     {STAGES.map(s => (
                       <option key={s.key} value={s.key}>{s.label}</option>
@@ -383,14 +398,17 @@ export default function DealsView({ activeOrg }) {
                     className="form-input"
                     value={formData.expected_close_date}
                     onChange={e => setFormData({ ...formData, expected_close_date: e.target.value })}
+                    disabled={userRole === 'MEMBER'}
                   />
                 </div>
               </div>
               <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
-                <button type="button" className="btn btn-danger" onClick={() => handleDeleteDeal(editingDeal.id)}>Delete</button>
+                {userRole === 'ADMIN' ? (
+                  <button type="button" className="btn btn-danger" onClick={() => handleDeleteDeal(editingDeal.id)}>Delete</button>
+                ) : <div />}
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">Save Changes</button>
+                  {userRole !== 'MEMBER' && <button type="submit" className="btn btn-primary">Save Changes</button>}
                 </div>
               </div>
             </form>

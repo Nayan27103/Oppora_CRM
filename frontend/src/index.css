@@ -1,7 +1,44 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 :root {
-  /* HSL Color System */
+  /* Refined Light/White Color System */
+  --bg-base: 220 20% 97%;          /* Very soft grey-blue base */
+  --bg-surface: 0 0% 100%;          /* Clean white surface */
+  --bg-surface-hover: 220 20% 95%;  /* Soft hover grey */
+  --bg-glass: 0 0% 100% / 0.75;     /* Translucent glass */
+  
+  --border-color: 220 15% 90%;      /* Soft grey border */
+  --border-glow: 250 85% 55% / 0.08; /* Subtle violet glow border */
+
+  --color-primary: 250 85% 55%;     /* Clean interactive violet/indigo */
+  --color-primary-hover: 250 85% 48%;
+  --color-primary-glow: 250 85% 55% / 0.12;
+  
+  --color-success: 142 72% 40%;     /* Rich green */
+  --color-warning: 38 92% 45%;      /* Rich amber */
+  --color-danger: 350 89% 55%;      /* Rich red */
+  --color-info: 200 90% 50%;        /* Rich blue */
+
+  --text-primary: 220 25% 15%;      /* Dark slate/charcoal text */
+  --text-secondary: 220 15% 38%;    /* Medium slate text */
+  --text-muted: 220 10% 55%;        /* Muted slate text */
+
+  --font-primary: 'Plus Jakarta Sans', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 30px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 18px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 10px 32px rgba(15, 23, 42, 0.1), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-glow: 0 0 18px rgba(99, 102, 241, 0.15);
+}
+
+.dark {
+  /* HSL Dark/Purple Glassmorphism Color System */
   --bg-base: 220 20% 8%;
   --bg-surface: 220 20% 12%;
   --bg-surface-hover: 220 20% 16%;
@@ -23,18 +60,20 @@
   --text-secondary: 220 10% 70%;
   --text-muted: 220 10% 50%;
 
-  --font-primary: 'Plus Jakarta Sans', sans-serif;
-  --font-display: 'Outfit', sans-serif;
-
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
-  --radius-xl: 30px;
-
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.6);
   --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.8);
   --shadow-glow: 0 0 20px rgba(124, 58, 237, 0.3);
+}
+
+.dark .main-content {
+  background: radial-gradient(circle at 80% 20%, hsl(262 50% 15% / 0.25), transparent 45%), hsl(var(--bg-base));
+}
+
+.dark h1 {
+  background: linear-gradient(135deg, #fff 40%, hsl(var(--color-primary)) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* Reset & Base Styles */
@@ -109,7 +148,7 @@ button, input, textarea, select {
   flex-direction: column;
   height: 100vh;
   overflow-y: auto;
-  background: radial-gradient(circle at 80% 20%, hsl(262 50% 15% / 0.25), transparent 45%);
+  background: radial-gradient(circle at 80% 20%, hsl(250 85% 55% / 0.05), transparent 45%), hsl(var(--bg-base));
 }
 
 .page-container {
@@ -130,7 +169,7 @@ h1, h2, h3, h4, h5, h6 {
 
 h1 {
   font-size: 2.2rem;
-  background: linear-gradient(135deg, #fff 40%, hsl(var(--color-primary)) 100%);
+  background: linear-gradient(135deg, hsl(var(--text-primary)) 40%, hsl(var(--color-primary)) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }

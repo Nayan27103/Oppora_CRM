@@ -7,4 +7,8 @@ python-decouple
 requests
 celery
 django-celery-results
+django-celery-beat
+django-redis
+redis
+openai
 beautifulsoup4

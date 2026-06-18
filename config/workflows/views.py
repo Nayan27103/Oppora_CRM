@@ -12,12 +12,16 @@ class WorkflowListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from common.utils import check_user_permission, permission_denied_response
         active_org = get_active_org(request)
         if not active_org:
             return Response({
                 "success": False,
                 "message": "No active organization found."
             }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
 
         workflows = Workflow.objects.filter(organization=active_org).order_by('-created_at')
         serializer = WorkflowSerializer(workflows, many=True)
@@ -27,12 +31,16 @@ class WorkflowListView(APIView):
         })
 
     def post(self, request):
+        from common.utils import check_user_permission, permission_denied_response
         active_org = get_active_org(request)
         if not active_org:
             return Response({
                 "success": False,
                 "message": "No active organization found."
             }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         # Inject organization
         data = request.data.copy()
@@ -63,7 +71,17 @@ class WorkflowDetailView(APIView):
             return None
 
     def get(self, request, pk):
+        from common.utils import check_user_permission, permission_denied_response
         active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization found."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
+
         workflow = self.get_object(pk, active_org)
         if not workflow:
             return Response({
@@ -78,7 +96,17 @@ class WorkflowDetailView(APIView):
         })
 
     def put(self, request, pk):
+        from common.utils import check_user_permission, permission_denied_response
         active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization found."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
+
         workflow = self.get_object(pk, active_org)
         if not workflow:
             return Response({
@@ -101,7 +129,17 @@ class WorkflowDetailView(APIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
+        from common.utils import check_user_permission, permission_denied_response
         active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization found."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not check_user_permission(request, active_org, ['ADMIN']):
+            return permission_denied_response()
+
         workflow = self.get_object(pk, active_org)
         if not workflow:
             return Response({
@@ -120,12 +158,16 @@ class WorkflowRunListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from common.utils import check_user_permission, permission_denied_response
         active_org = get_active_org(request)
         if not active_org:
             return Response({
                 "success": False,
                 "message": "No active organization found."
             }, status=status.HTTP_400_BAD_REQUEST)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
 
         workflow_id = request.GET.get('workflow_id')
         runs = WorkflowRun.objects.filter(workflow__organization=active_org)

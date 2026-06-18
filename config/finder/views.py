@@ -25,6 +25,17 @@ class StartSearchView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
+
         serializer = SearchQueryCreateSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response(serializer.errors, status_code=400)
@@ -50,6 +61,17 @@ class SearchStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
+
         try:
             query = SearchQuery.objects.get(id=pk, user=request.user)
         except SearchQuery.DoesNotExist:
@@ -75,6 +97,17 @@ class SearchHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
+
         queries = SearchQuery.objects.filter(user=request.user)[:20]
         serializer = SearchQueryResultSerializer(queries, many=True)
         return success_response(data=serializer.data)
@@ -85,6 +118,17 @@ class CompanySearchView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
+
         industry = request.data.get('industry', '')
         location = request.data.get('location', '')
         keywords = request.data.get('keywords', '')
@@ -103,6 +147,17 @@ class URLScanTestView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
+
         domain = request.data.get('domain')
         if not domain:
             return error_response('Domain parameter is required.', status_code=400)
@@ -173,6 +228,17 @@ class TheirStackTestView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
+
         technology = request.data.get('technology')
         if not technology:
             return error_response('Technology parameter is required.', status_code=400)

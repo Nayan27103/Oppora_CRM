@@ -46,76 +46,77 @@ import {
   Eye
 } from 'lucide-react';
 
-// MD3-inspired dark mode theme
-const md3Theme = createTheme({
-  palette: {
-    mode: 'dark',
-    primary: { 
-      main: '#D0BCFF', // MD3 Dark Primary (purple tone)
-      contrastText: '#381E72',
-    },
-    secondary: { 
-      main: '#CCC2DC', // MD3 Dark Secondary
-      contrastText: '#332D41',
-    },
-    error: { 
-      main: '#F2B8B5', // MD3 Dark Error
-    },
-    background: {
-      default: '#0a0d14', // Matches CRM base background
-      paper: '#121622',   // Matches CRM surface background
-    },
-    text: {
-      primary: '#E6E1E5',
-      secondary: '#CAC4D0',
-    },
-  },
-  shape: { 
-    borderRadius: 12 
-  },
-  typography: {
-    fontFamily: '"Roboto", "Plus Jakarta Sans", sans-serif',
-    h1: { fontFamily: '"Outfit", sans-serif', fontWeight: 700 },
-    h2: { fontFamily: '"Outfit", sans-serif', fontWeight: 700 },
-    h3: { fontFamily: '"Outfit", sans-serif', fontWeight: 700 },
-    h4: { fontFamily: '"Outfit", sans-serif', fontWeight: 600 },
-    h5: { fontFamily: '"Outfit", sans-serif', fontWeight: 600 },
-    h6: { fontFamily: '"Outfit", sans-serif', fontWeight: 600 },
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 100, // MD3 pills style for buttons
-          textTransform: 'none',
-          fontWeight: 500,
-          padding: '10px 24px',
+export default function FinderPage({ activeOrg, onNavigate, theme, userRole }) {
+  const md3Theme = React.useMemo(() => {
+    const isDark = theme === 'dark';
+    return createTheme({
+      palette: {
+        mode: isDark ? 'dark' : 'light',
+        primary: { 
+          main: isDark ? '#D0BCFF' : '#6750A4',
+          contrastText: isDark ? '#381E72' : '#FFFFFF',
+        },
+        secondary: { 
+          main: isDark ? '#CCC2DC' : '#625B71',
+          contrastText: isDark ? '#332D41' : '#FFFFFF',
+        },
+        error: { 
+          main: isDark ? '#F2B8B5' : '#B3261E',
+        },
+        background: {
+          default: isDark ? '#0F0F12' : '#F4F5F8',
+          paper: isDark ? '#1A1A22' : '#FFFFFF',
+        },
+        text: {
+          primary: isDark ? '#E6E1E5' : '#1C1B1F',
+          secondary: isDark ? '#CAC4D0' : '#49454F',
         },
       },
-    },
-    MuiTextField: {
-      styleOverrides: {
-        root: {
-          '& .MuiOutlinedInput-root': {
-            borderRadius: 12,
-            '& fieldset': {
-              borderColor: 'rgba(204, 196, 206, 0.4)',
+      shape: { 
+        borderRadius: 12 
+      },
+      typography: {
+        fontFamily: '"Roboto", "Plus Jakarta Sans", sans-serif',
+        h1: { fontFamily: '"Outfit", sans-serif', fontWeight: 700 },
+        h2: { fontFamily: '"Outfit", sans-serif', fontWeight: 700 },
+        h3: { fontFamily: '"Outfit", sans-serif', fontWeight: 700 },
+        h4: { fontFamily: '"Outfit", sans-serif', fontWeight: 600 },
+        h5: { fontFamily: '"Outfit", sans-serif', fontWeight: 600 },
+        h6: { fontFamily: '"Outfit", sans-serif', fontWeight: 600 },
+      },
+      components: {
+        MuiButton: {
+          styleOverrides: {
+            root: {
+              borderRadius: 100,
+              textTransform: 'none',
+              fontWeight: 500,
+              padding: '10px 24px',
             },
-            '&:hover fieldset': {
-              borderColor: '#D0BCFF',
-            },
-            '&.Mui-focused fieldset': {
-              borderColor: '#D0BCFF',
-              borderWidth: 2,
+          },
+        },
+        MuiTextField: {
+          styleOverrides: {
+            root: {
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 12,
+                '& fieldset': {
+                  borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
+                },
+                '&:hover fieldset': {
+                  borderColor: isDark ? '#D0BCFF' : '#6750A4',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: isDark ? '#D0BCFF' : '#6750A4',
+                  borderWidth: 2,
+                },
+              },
             },
           },
         },
       },
-    },
-  },
-});
-
-export default function FinderPage({ activeOrg, onNavigate }) {
+    });
+  }, [theme]);
   // Required spec states
   const [activeTab, setActiveTab] = useState('companies'); // companies | people | both
   const [companyResults, setCompanyResults] = useState([]);
@@ -310,6 +311,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
 
   const handleURLScanTest = async (e) => {
     if (e) e.preventDefault();
+    if (userRole === 'MEMBER') return;
     if (!urlscanDomain.trim()) return;
     setUrlscanLoading(true);
     setUrlscanResult(null);
@@ -330,6 +332,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
 
   const handleTheirStackTest = async (e) => {
     if (e) e.preventDefault();
+    if (userRole === 'MEMBER') return;
     if (!theirstackTech.trim()) return;
     setTheirstackLoading(true);
     setTheirstackResult(null);
@@ -351,6 +354,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
   // Submit company search
   const handleCompanySearchSubmit = async (e) => {
     if (e) e.preventDefault();
+    if (userRole === 'MEMBER') return;
     setCompanyLoading(true);
     setCompanyResults([]);
     
@@ -382,6 +386,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
   // Submit people search
   const handlePeopleSearchSubmit = async (e) => {
     if (e) e.preventDefault();
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') return;
     if (!domain.trim()) return;
 
     setSearchStatus('pending');
@@ -414,6 +419,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
   // Submit both search
   const handleBothSearchSubmit = async (e) => {
     if (e) e.preventDefault();
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') return;
     if (!domain.trim()) return;
 
     setSearchStatus('pending');
@@ -446,6 +452,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
 
   // Action: Import selected contacts to CRM
   const handleImportSelected = async () => {
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') return;
     if (!activeOrg) {
       setErrorMessage('Please select or create an active workspace first.');
       setSnackbarOpen(true);
@@ -493,6 +500,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
 
   // Action: Add company to CRM
   const handleAddCompanyToCRM = async (company) => {
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') return;
     if (!activeOrg) {
       setErrorMessage('Please select or create an active workspace first.');
       setSnackbarOpen(true);
@@ -541,6 +549,16 @@ export default function FinderPage({ activeOrg, onNavigate }) {
 
   // Action: Re-run search from history
   const handleReRun = (item) => {
+    if (item.search_type === 'company' && userRole === 'MEMBER') {
+      setErrorMessage('Search execution is restricted for Members.');
+      setSnackbarOpen(true);
+      return;
+    }
+    if ((item.search_type === 'people' || item.search_type === 'both') && userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+      setErrorMessage('People search is restricted to Administrators and Managers.');
+      setSnackbarOpen(true);
+      return;
+    }
     if (item.search_type === 'company') {
       setCompaniesIndustry(item.industry || '');
       setCompaniesLocation(item.location || '');
@@ -745,11 +763,11 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                       variant="contained"
                       fullWidth
                       color="primary"
-                      disabled={companyLoading}
+                      disabled={companyLoading || userRole === 'MEMBER'}
                       startIcon={companyLoading ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
                       sx={{ py: 1.5 }}
                     >
-                      Search Companies
+                      {userRole === 'MEMBER' ? 'Search Restricted' : 'Search Companies'}
                     </Button>
                   </form>
                 </CardContent>
@@ -770,9 +788,9 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         placeholder="e.g. stripe.com"
                         value={domain}
                         onChange={(e) => setDomain(e.target.value)}
-                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
-                        helperText="Provide company domain to search people"
-                        FormHelperTextProps={{ sx: { color: 'text.secondary' } }}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
+                        helperText={(userRole !== 'ADMIN' && userRole !== 'MANAGER') ? "Only administrators and managers can run searches" : "Provide company domain to search people"}
+                        FormHelperTextProps={{ sx: { color: (userRole !== 'ADMIN' && userRole !== 'MANAGER') ? 'error.main' : 'text.secondary' } }}
                       />
                     </Box>
                     <Box>
@@ -782,7 +800,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         placeholder="e.g. engineer, founder"
                         value={peopleJobTitle}
                         onChange={(e) => setPeopleJobTitle(e.target.value)}
-                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                       />
                     </Box>
                     <Box>
@@ -792,7 +810,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         placeholder="e.g. London, San Francisco"
                         value={peopleLocation}
                         onChange={(e) => setPeopleLocation(e.target.value)}
-                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                       />
                     </Box>
                     <Button
@@ -800,11 +818,11 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                       variant="contained"
                       fullWidth
                       color="primary"
-                      disabled={!domain.trim() || searchStatus === 'pending' || searchStatus === 'running'}
+                      disabled={!domain.trim() || searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                       startIcon={(searchStatus === 'pending' || searchStatus === 'running') ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
                       sx={{ py: 1.5 }}
                     >
-                      Find People
+                      {(userRole !== 'ADMIN' && userRole !== 'MANAGER') ? 'Search Restricted' : 'Find People'}
                     </Button>
                   </form>
                 </CardContent>
@@ -825,7 +843,9 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         placeholder="e.g. stripe.com"
                         value={domain}
                         onChange={(e) => setDomain(e.target.value)}
-                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
+                        helperText={(userRole !== 'ADMIN' && userRole !== 'MANAGER') ? "Only administrators and managers can run searches" : ""}
+                        FormHelperTextProps={{ sx: { color: 'error.main' } }}
                       />
                     </Box>
                     <Box>
@@ -835,7 +855,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         placeholder="e.g. fintech, ecommerce"
                         value={bothIndustry}
                         onChange={(e) => setBothIndustry(e.target.value)}
-                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                       />
                     </Box>
                     <Box>
@@ -845,7 +865,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         placeholder="e.g. developer, founder"
                         value={bothJobTitle}
                         onChange={(e) => setBothJobTitle(e.target.value)}
-                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                       />
                     </Box>
                     <Box>
@@ -855,7 +875,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         placeholder="e.g. India, Boston"
                         value={bothLocation}
                         onChange={(e) => setBothLocation(e.target.value)}
-                        disabled={searchStatus === 'pending' || searchStatus === 'running'}
+                        disabled={searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                       />
                     </Box>
                     <Button
@@ -863,11 +883,11 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                       variant="contained"
                       fullWidth
                       color="primary"
-                      disabled={!domain.trim() || searchStatus === 'pending' || searchStatus === 'running'}
+                      disabled={!domain.trim() || searchStatus === 'pending' || searchStatus === 'running' || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                       startIcon={(searchStatus === 'pending' || searchStatus === 'running') ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
                       sx={{ py: 1.5 }}
                     >
-                      Search Everything
+                      {(userRole !== 'ADMIN' && userRole !== 'MANAGER') ? 'Search Restricted' : 'Search Everything'}
                     </Button>
                   </form>
                 </CardContent>
@@ -889,7 +909,9 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                           placeholder="e.g. stripe.com"
                           value={urlscanDomain}
                           onChange={(e) => setUrlscanDomain(e.target.value)}
-                          disabled={urlscanLoading}
+                          disabled={urlscanLoading || userRole === 'MEMBER'}
+                          helperText={userRole === 'MEMBER' ? "Diagnostics are restricted to Admin/Manager" : ""}
+                          FormHelperTextProps={{ sx: { color: 'error.main' } }}
                         />
                       </Box>
                       <Button
@@ -897,7 +919,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         variant="contained"
                         fullWidth
                         color="primary"
-                        disabled={urlscanLoading || !urlscanDomain.trim()}
+                        disabled={urlscanLoading || !urlscanDomain.trim() || userRole === 'MEMBER'}
                         startIcon={urlscanLoading ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
                       >
                         Query URLScan
@@ -919,7 +941,9 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                           placeholder="e.g. react, snowflake"
                           value={theirstackTech}
                           onChange={(e) => setTheirstackTech(e.target.value)}
-                          disabled={theirstackLoading}
+                          disabled={theirstackLoading || userRole === 'MEMBER'}
+                          helperText={userRole === 'MEMBER' ? "Diagnostics are restricted to Admin/Manager" : ""}
+                          FormHelperTextProps={{ sx: { color: 'error.main' } }}
                         />
                       </Box>
                       <Button
@@ -927,7 +951,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                         variant="contained"
                         fullWidth
                         color="primary"
-                        disabled={theirstackLoading || !theirstackTech.trim()}
+                        disabled={theirstackLoading || !theirstackTech.trim() || userRole === 'MEMBER'}
                         startIcon={theirstackLoading ? <CircularProgress size={18} color="inherit" /> : <Search size={18} />}
                       >
                         Query TheirStack
@@ -1177,7 +1201,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                           variant="contained" 
                           size="small" 
                           fullWidth 
-                          disabled={company.imported}
+                          disabled={company.imported || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                           onClick={() => handleAddCompanyToCRM(company)}
                           sx={{ fontSize: '0.75rem', py: 0.75, borderRadius: '8px' }}
                         >
@@ -1187,6 +1211,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                           variant="outlined" 
                           size="small" 
                           fullWidth 
+                          disabled={userRole !== 'ADMIN' && userRole !== 'MANAGER'}
                           onClick={() => handleFindPeople(company.domain)}
                           sx={{ fontSize: '0.75rem', py: 0.75, borderRadius: '8px' }}
                         >
@@ -1212,7 +1237,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                   <Button
                     variant="contained"
                     size="small"
-                    disabled={selectedEmails.length === 0 || importing}
+                    disabled={selectedEmails.length === 0 || importing || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                     onClick={handleImportSelected}
                     sx={{ borderRadius: '8px', fontSize: '0.8rem', px: 3 }}
                   >
@@ -1227,6 +1252,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                           <input
                             type="checkbox"
                             checked={peopleResults.length > 0 && peopleResults.every(p => selectedEmails.includes(p.email) || importedEmails.includes(p.email))}
+                            disabled={userRole !== 'ADMIN' && userRole !== 'MANAGER'}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 const toSelect = peopleResults
@@ -1256,7 +1282,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                               <input
                                 type="checkbox"
                                 checked={selectedEmails.includes(person.email)}
-                                disabled={importedEmails.includes(person.email)}
+                                disabled={importedEmails.includes(person.email) || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setSelectedEmails(prev => [...prev, person.email]);
@@ -1323,7 +1349,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                   <Button
                     variant="contained"
                     size="small"
-                    disabled={selectedEmails.length === 0 || importing}
+                    disabled={selectedEmails.length === 0 || importing || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                     onClick={handleImportSelected}
                     sx={{ borderRadius: '8px', fontSize: '0.8rem', px: 3 }}
                   >
@@ -1361,7 +1387,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                           <Button 
                             variant="contained" 
                             size="small" 
-                            disabled={isAlreadyImported}
+                            disabled={isAlreadyImported || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                             onClick={() => handleAddCompanyToCRM(companyResults[0] || company)}
                             sx={{ fontSize: '0.75rem', py: 0.75, borderRadius: '8px', ml: 1 }}
                           >
@@ -1382,6 +1408,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                           <input
                             type="checkbox"
                             checked={peopleResults.length > 0 && peopleResults.every(p => selectedEmails.includes(p.email) || importedEmails.includes(p.email))}
+                            disabled={userRole !== 'ADMIN' && userRole !== 'MANAGER'}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 const toSelect = peopleResults
@@ -1411,7 +1438,7 @@ export default function FinderPage({ activeOrg, onNavigate }) {
                               <input
                                 type="checkbox"
                                 checked={selectedEmails.includes(person.email)}
-                                disabled={importedEmails.includes(person.email)}
+                                disabled={importedEmails.includes(person.email) || (userRole !== 'ADMIN' && userRole !== 'MANAGER')}
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setSelectedEmails(prev => [...prev, person.email]);

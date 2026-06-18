@@ -89,7 +89,9 @@ class ApiClient {
 
       if (response.ok) {
         const data = await response.json();
-        this.setTokens(data.access, data.refresh);
+        // Unwraps the tokens from the REST API success envelope if wrapped
+        const tokens = data.data || data;
+        this.setTokens(tokens.access, tokens.refresh);
         return true;
       } else {
         this.clearTokens();
@@ -313,6 +315,12 @@ class ApiClient {
     return await this.request('/api/attachments/upload/', {
       method: 'POST',
       body: formData
+    });
+  }
+
+  async deleteAttachment(attachmentId) {
+    return await this.request(`/api/attachments/${attachmentId}/delete/`, {
+      method: 'DELETE'
     });
   }
 

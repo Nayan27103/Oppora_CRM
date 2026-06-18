@@ -161,7 +161,7 @@ export default function AdminPanelView() {
               <DollarSign size={18} style={{ color: 'hsl(var(--color-success))' }} /> Closed Revenue (System-Wide)
             </h3>
             <div style={{ padding: '1.5rem 0' }}>
-              <h2 style={{ fontSize: '2.5rem', color: '#FFF' }}>${stats.closed_won_revenue.toLocaleString()}</h2>
+              <h2 style={{ fontSize: '2.5rem', color: 'hsl(var(--text-primary))' }}>${stats.closed_won_revenue.toLocaleString()}</h2>
               <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '0.9rem', marginTop: '4px' }}>Cumulative closed-won pipeline revenue across all workspaces.</p>
             </div>
           </div>
@@ -374,7 +374,7 @@ export default function AdminPanelView() {
             fontSize: '0.9rem'
           }}
         >
-          All Users ({users.length})
+          All Users ({stats ? stats.total_users : users.length})
         </button>
         <button 
           onClick={() => { setActiveTab('orgs'); setSearchQuery(''); }}
@@ -386,7 +386,7 @@ export default function AdminPanelView() {
             fontSize: '0.9rem'
           }}
         >
-          Workspaces ({orgs.length})
+          Workspaces ({stats ? stats.total_organizations : orgs.length})
         </button>
         <button 
           onClick={() => { setActiveTab('contacts'); setSearchQuery(''); }}
@@ -398,7 +398,7 @@ export default function AdminPanelView() {
             fontSize: '0.9rem'
           }}
         >
-          All Contacts ({contacts.length})
+          All Contacts ({stats ? stats.total_contacts : contacts.length})
         </button>
         <button 
           onClick={() => { setActiveTab('leads'); setSearchQuery(''); }}
@@ -410,7 +410,7 @@ export default function AdminPanelView() {
             fontSize: '0.9rem'
           }}
         >
-          All CRM Leads ({leads.length})
+          All CRM Leads ({stats ? stats.total_leads : leads.length})
         </button>
       </div>
 

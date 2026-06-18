@@ -20,12 +20,29 @@ class ActivityCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         serializer = ActivitySerializer(
             data=request.data
         )
 
         if serializer.is_valid():
+            # Validate that target lead belongs to active organization
+            lead = serializer.validated_data.get("lead")
+            if not lead or lead.contact.organization != active_org:
+                return Response({
+                    "success": False,
+                    "message": "Lead does not belong to your active organization."
+                }, status=403)
 
             activity = serializer.save()
 
@@ -55,8 +72,16 @@ class ActivityListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from common.utils import get_active_org
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
         active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
 
         from django.db.models import F
         if active_org:
@@ -85,9 +110,19 @@ class ActivityUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         try:
-            activity = Activity.objects.get(pk=pk)
+            activity = Activity.objects.get(pk=pk, lead__contact__organization=active_org)
         except Activity.DoesNotExist:
             return Response({
                 "success": False,
@@ -122,9 +157,19 @@ class ActivityDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN']):
+            return permission_denied_response()
 
         try:
-            activity = Activity.objects.get(pk=pk)
+            activity = Activity.objects.get(pk=pk, lead__contact__organization=active_org)
         except Activity.DoesNotExist:
             return Response({
                 "success": False,
@@ -153,8 +198,16 @@ class ActivityDeletedListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from common.utils import get_active_org
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
         active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
 
         if active_org:
             activities = Activity.objects.select_related(
@@ -182,8 +235,19 @@ class ActivityRestoreView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
+
         try:
-            activity = Activity.objects.get(pk=pk)
+            activity = Activity.objects.get(pk=pk, lead__contact__organization=active_org)
         except Activity.DoesNotExist:
             return Response({
                 "success": False,
