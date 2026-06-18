@@ -62,7 +62,11 @@ export default function DashboardView({ activeOrg, onNavigate }) {
 
       <div className="metric-grid">
         {/* Closed Won Revenue Card */}
-        <div className="glass-panel glass-panel-hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        <div 
+          className="glass-panel glass-panel-hover" 
+          style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
+          onClick={() => onNavigate('deals')}
+        >
           <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'hsl(var(--color-success) / 0.15)', color: 'hsl(var(--color-success))' }}>
             <DollarSign size={24} />
           </div>
@@ -73,7 +77,11 @@ export default function DashboardView({ activeOrg, onNavigate }) {
         </div>
 
         {/* Pipeline Value Card */}
-        <div className="glass-panel glass-panel-hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        <div 
+          className="glass-panel glass-panel-hover" 
+          style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
+          onClick={() => onNavigate('deals')}
+        >
           <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'hsl(var(--color-primary) / 0.15)', color: 'hsl(var(--color-primary-hover))' }}>
             <Target size={24} />
           </div>
@@ -84,7 +92,11 @@ export default function DashboardView({ activeOrg, onNavigate }) {
         </div>
 
         {/* Total Leads Card */}
-        <div className="glass-panel glass-panel-hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        <div 
+          className="glass-panel glass-panel-hover" 
+          style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
+          onClick={() => onNavigate('leads')}
+        >
           <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'hsl(var(--color-info) / 0.15)', color: 'hsl(var(--color-info))' }}>
             <Users size={24} />
           </div>
@@ -95,7 +107,11 @@ export default function DashboardView({ activeOrg, onNavigate }) {
         </div>
 
         {/* Deals Count Card */}
-        <div className="glass-panel glass-panel-hover" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+        <div 
+          className="glass-panel glass-panel-hover" 
+          style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
+          onClick={() => onNavigate('deals')}
+        >
           <div style={{ padding: '12px', borderRadius: 'var(--radius-md)', background: 'hsl(var(--color-warning) / 0.15)', color: 'hsl(var(--color-warning))' }}>
             <Activity size={24} />
           </div>
