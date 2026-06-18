@@ -126,3 +126,42 @@ npm install @mui/material @emotion/react @emotion/styled
 
 - `db.sqlite3` and `.env` are ignored by `.gitignore`
 - The frontend has its own `README.md` and `.gitignore` under `frontend/`
+
+
+
+'''
+.env
+
+OPENAI_API_KEY=
+HUNTER_API_KEY=
+ABSTRACT_API_KEY=
+
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=user@gmail.com
+EMAIL_HOST_PASSWORD=********************
+# DEFAULT_FROM_EMAIL=noreply@oppora.local
+DEFAULT_FROM_EMAIL= user@gmail.com
+
+PDL_API_KEY=
+SERPER_API_KEY=
+URLSCAN_API_KEY=
+THEIRSTACK_API_KEY=
+
+
+
+
+
+
+
+
+*****command to run the code *****
+
+cd config -> python manage.py runserver
+
+cd frontend -> npm run dev
+
+cd config  -> celery -A config worker --loglevel=info --pool=solo -Q celery,notifications,emails,ai,workflow
+'''
