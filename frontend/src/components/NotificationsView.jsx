@@ -32,9 +32,10 @@ export default function NotificationsView() {
       const res = await api.readNotification(id);
       if (res.success) {
         fetchNotifications();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Notification marked as read!', type: 'success' } }));
       }
     } catch (err) {
-      alert(err.data?.message || 'Failed to read notification');
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: err.data?.message || 'Failed to read notification', type: 'danger' } }));
       fetchNotifications();
     }
   };
@@ -45,9 +46,10 @@ export default function NotificationsView() {
       const res = await api.readAllNotifications();
       if (res.success) {
         fetchNotifications();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'All notifications marked as read!', type: 'success' } }));
       }
     } catch (err) {
-      alert(err.data?.message || 'Failed to read notifications');
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: err.data?.message || 'Failed to read notifications', type: 'danger' } }));
       fetchNotifications();
     }
   };
@@ -58,9 +60,10 @@ export default function NotificationsView() {
       const res = await api.deleteNotification(id);
       if (res.success) {
         fetchNotifications();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Notification deleted!', type: 'success' } }));
       }
     } catch (err) {
-      alert(err.data?.message || 'Failed to delete notification');
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: err.data?.message || 'Failed to delete notification', type: 'danger' } }));
       fetchNotifications();
     }
   };

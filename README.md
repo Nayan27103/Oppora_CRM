@@ -80,11 +80,22 @@ Start the backend:
 python config/manage.py runserver
 ```
 
+'''celery  run
+celery -A config worker --loglevel=info --pool=solo
+celery -A config worker --loglevel=info --pool=solo -Q celery,notifications,emails,ai,workflow
+'''
+
+
 Start the frontend:
 
 ```bash
 cd frontend
 npm run dev
+
+
+cd frontend
+
+npm install @mui/material @emotion/react @emotion/styled
 ```
 
 ## Auth and Email

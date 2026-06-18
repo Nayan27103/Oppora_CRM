@@ -51,8 +51,10 @@ INSTALLED_APPS = [
     "notifications",
     "deals",
     "attachments",
+    "finder",
     "common",
     "django_celery_beat",
+    "workflows.apps.WorkflowsConfig",
 ]
 
 MEDIA_URL = "/media/"
@@ -76,6 +78,7 @@ CELERY_TASK_ROUTES = {
     'notifications.tasks.create_notification_task': {'queue': 'notifications'},
     'notifications.tasks.send_email_task': {'queue': 'emails'},
     'ai_assistant.tasks.ai_lead_scoring_task': {'queue': 'ai'},
+    'workflows.tasks.execute_workflow_task': {'queue': 'celery'},
 }
 
 CACHES = {
@@ -130,6 +133,11 @@ SPECTACULAR_SETTINGS = {
 }
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "x-workspace-id",
+]
 
 EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
 EMAIL_HOST = config("EMAIL_HOST", default="localhost")

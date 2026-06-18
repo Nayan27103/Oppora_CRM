@@ -29,6 +29,21 @@ class Lead(models.Model):
         db_index=True
     )
 
+    CATEGORY_CHOICES = [
+        ("IT", "IT"),
+        ("SALES", "SALES"),
+        ("HOSPITAL", "HOSPITAL"),
+        ("RESTAURANTS", "RESTAURANTS"),
+        ("OTHER", "OTHER"),
+    ]
+
+    category = models.CharField(
+        max_length=50,
+        choices=CATEGORY_CHOICES,
+        default="SALES",
+        db_index=True
+    )
+
     score = models.IntegerField(
         default=0
     )

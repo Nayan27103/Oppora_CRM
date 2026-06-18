@@ -1,277 +1,202 @@
 # Oppora CRM Clone Documentation
 
-## Project Overview
-
-Oppora CRM Clone is a Django-based CRM backend paired with a React + Vite frontend. It provides core CRM features including organizations, contacts, leads, deals, activities, notifications, attachments, and an AI assistant powered by OpenAI.
-
-## Repository Structure
-
-- `config/`: Django project and backend apps.
-  - `config/config/`: Django settings, URLs, ASGI, WSGI, and management command.
-  - `accounts/`: Custom user model, authentication, registration, login, profile.
-  - `organizations/`: Organizations, team members, organization stats.
-  - `contacts/`: Contact management.
-  - `leads/`: Lead management.
-  - `activities/`: Activity/task tracking for leads.
-  - `deals/`: Deal management and lead-to-deal conversion.
-  - `attachments/`: File upload and attachment listing.
-  - `notifications/`: Notification CRUD and read state.
-  - `dashboard/`: CRM summary and metrics.
-  - `ai_assistant/`: AI-powered email generation, lead summaries, meeting notes, lead scoring, chat assistant.
-  - `common/`: Shared middleware, permissions, pagination, response handling.
-- `frontend/`: React + Vite frontend application.
-  - `src/`: React components and API client.
-  - `public/`: Static assets.
-  - `package.json`: Frontend dependencies and scripts.
-- `requirements.txt`: Python dependencies for the Django backend.
-- `db.sqlite3`: SQLite database file.
-- `venv/`: Python virtual environment (local development environment files).
-
-## Backend Architecture
-
-### Django Configuration
-
-- Django project root: `config/config/`
-- Main settings file: `config/config/settings.py`
-- Main routing: `config/config/urls.py`
-- Custom user model: `accounts.models.User`
-- Authentication: JWT via `rest_framework_simplejwt`
-- API docs: `drf_spectacular`
-- CORS: `django-cors-headers` with `CORS_ALLOW_ALL_ORIGINS = True`
-- Database: SQLite at `db.sqlite3`
-- Media files: served in debug mode from `MEDIA_URL = /media/`
-- OpenAI key: loaded from environment variable `OPENAI_API_KEY`
-
-### Installed Apps
-
-- `accounts`
-- `organizations`
-- `contacts`
-- `leads`
-- `activities`
-- `dashboard`
-- `ai_assistant`
-- `notifications`
-- `deals`
-- `attachments`
-- `common`
-
-### Authentication
-
-- Registration: `POST /api/accounts/register/`
-- Login: `POST /api/accounts/login/`
-- Profile: `GET /api/accounts/profile/`
-- Token refresh: `POST /api/token/refresh/`
-
-### API Endpoints
-
-#### Accounts
-
-- `POST /api/accounts/register/`
-- `POST /api/accounts/login/`
-- `GET /api/accounts/profile/`
-
-#### Organizations
-
-- `POST /api/organizations/create/`
-- `GET /api/organizations/`
-- `POST /api/organizations/members/add/`
-- `GET /api/organizations/<int:organization_id>/members/`
-- `GET /api/organizations/stats/`
-
-#### Contacts
-
-- `POST /api/contacts/create/`
-- `GET /api/contacts/`
-- `PUT /api/contacts/<int:pk>/`
-- `DELETE /api/contacts/<int:pk>/delete/`
-- `POST /api/contacts/bulk-create/`
-
-#### Leads
-
-- `POST /api/leads/create/`
-- `GET /api/leads/`
-- `PATCH /api/leads/<int:pk>/`
-- `DELETE /api/leads/<int:pk>/delete/`
-- `PATCH /api/leads/bulk-update/`
-
-#### Activities
-
-- `POST /api/activities/create/`
-- `GET /api/activities/`
-- `PATCH /api/activities/<int:pk>/`
-- `DELETE /api/activities/<int:pk>/delete/`
-
-#### Dashboard
-
-- `GET /api/dashboard/`
-
-#### AI Assistant
-
-- `POST /api/ai/email/`
-- `POST /api/ai/lead-summary/`
-- `POST /api/ai/meeting-notes/`
-- `POST /api/ai/score/`
-- `POST /api/ai/chat/`
-
-#### Notifications
-
-- `GET /api/notifications/`
-- `PATCH /api/notifications/<int:pk>/read/`
-- `PATCH /api/notifications/read-all/`
-- `DELETE /api/notifications/<int:pk>/delete/`
-
-#### Attachments
-
-- `POST /api/attachments/upload/`
-- `GET /api/attachments/lead/<int:lead_id>/`
-
-#### Deals
-
-- `GET /api/deals/`
-- `POST /api/deals/create/`
-- `PATCH /api/deals/<int:pk>/update/`
-- `DELETE /api/deals/<int:pk>/delete/`
-- `POST /api/deals/convert/`
-
-### Backend Models Summary
-
-- `accounts.User`
-  - Extends `AbstractUser`
-  - Uses `email` as unique login field
-  - Adds `phone`
-- `organizations.Organization`
-  - `name`, `owner`, `created_at`
-- `organizations.TeamMember`
-  - `organization`, `user`, `role`, `created_at`
-- `contacts.Contact`
-  - `organization`, `first_name`, `last_name`, `email`, `phone`, `company`, `job_title`
-- `leads.Lead`
-  - `contact`, `status`, `score`, `notes`, `created_at`, `updated_at`
-- `activities.Activity`
-  - `lead`, `activity_type`, `title`, `description`, `due_date`, `assigned_to`, `completed`
-- `deals.Deal`
-  - `lead`, `title`, `value`, `stage`, `expected_close_date`
-- `attachments.Attachment`
-  - `lead`, `file`, `uploaded_by`, `uploaded_at`
-- `notifications.Notification`
-  - `user`, `title`, `message`, `is_read`, `created_at`
-
-### AI Assistant
-
-The AI assistant uses `openai.OpenAI` with `gpt-4o-mini`.
-
-- `generate_ai_response(prompt)` sends prompts to OpenAI.
-- AI endpoints convert CRM data into email drafts, lead summaries, scores, meeting notes, and chat responses.
-- `AIChatView` creates prompts from qualified leads and deals, but currently uses all deals from the database.
-
-## Frontend Architecture
-
-### Frontend Stack
-
-- React 19
-- Vite 8
-- ESLint
-- `lucide-react` for icons
-
-### Main frontend files
-
-- `frontend/src/App.jsx` - application shell, auth handling, sidebar, view switching, notifications polling, user state.
-- `frontend/src/api.js` - API client for backend integration, token persistence, refresh logic.
-- `frontend/src/components/` - individual UI views for dashboard, organizations, contacts, leads, deals, activities, AI assistant, notifications.
-- `frontend/package.json` - scripts to run and build the frontend.
-
-### Frontend features
-
-- Authentication with JWT access and refresh tokens.
-- Profile fetching and organization selection.
-- Sidebar navigation and responsive UI state.
-- Notifications polling every 10 seconds.
-- API client handles token refresh automatically on 401 responses.
-- CRUD operations for contacts, leads, activities, deals, and attachments.
-- AI Assistant interface for chat, email generation, lead summaries, score prediction, and meeting notes conversion.
-
-### Frontend API mappings
-
-The frontend `api.js` maps to backend endpoints using:
-- `api.login`, `api.register`, `api.getProfile`
-- `api.getOrganizations`, `api.createOrganization`, `api.getTeamMembers`, `api.addTeamMember`
-- `api.getContacts`, `api.createContact`, `api.updateContact`, `api.deleteContact`, `api.bulkCreateContacts`
-- `api.getLeads`, `api.createLead`, `api.updateLead`, `api.deleteLead`, `api.bulkUpdateLeads`
-- `api.getDeals`, `api.createDeal`, `api.updateDeal`, `api.deleteDeal`, `api.convertLeadToDeal`
-- `api.getActivities`, `api.createActivity`, `api.updateActivity`, `api.deleteActivity`
-- `api.getNotifications`, `api.readNotification`, `api.readAllNotifications`, `api.deleteNotification`
-- `api.getAttachments`, `api.uploadAttachment`
-- `api.aiChat`, `api.generateEmail`, `api.getLeadSummary`, `api.getLeadScore`, `api.convertMeetingNotes`
-
-## Dependencies
-
-### Backend
-
-Defined in `requirements.txt`:
-
-- Django
-- djangorestframework
-- djangorestframework-simplejwt
-- django-cors-headers
-- drf-spectacular
-- python-decouple
-
-### Frontend
-
-Defined in `frontend/package.json`:
-
-- react
-- react-dom
-- lucide-react
-- vite
-- @vitejs/plugin-react
-- eslint and related plugins
-
-## Setup & Run Instructions
-
-1. Backend
-   - From `oppora_clone/oppora_clone`:
-     - Create and activate a Python virtual environment.
-     - Install dependencies: `pip install -r requirements.txt`
-     - Set `OPENAI_API_KEY` in your environment.
-     - Run database migrations: `python config/manage.py migrate`
-     - Optionally create a superuser: `python config/manage.py createsuperuser`
-     - Start backend server: `python config/manage.py runserver`
-
-2. Frontend
-   - From `oppora_clone/oppora_clone/frontend`:
-     - Install packages: `npm install`
-     - Start dev server: `npm run dev`
-     - Build for production: `npm run build`
-
-3. Access
-   - Backend API: `http://localhost:8000/`
-   - API docs: `http://localhost:8000/api/docs/`
-   - Swagger: `http://localhost:8000/api/docs/`
-   - Redoc: `http://localhost:8000/api/redoc/`
-   - Frontend app: Vite dev server URL shown by `npm run dev`
-
-## Notes and Observations
-
-- `DEBUG` is enabled and `SECRET_KEY` is hard-coded in `config/config/settings.py`; this should be secured for production.
-- Celery configuration in `settings.py` defines Redis URLs but then overwrites them to use in-memory transport.
-- `AIChatView` currently constructs prompt data from all deals instead of only the user’s organization-specific deals.
-- `notifications/views.py` contains debugging `print()` statements.
-- The app relies on `CORS_ALLOW_ALL_ORIGINS = True`, which is convenient for development but should be restricted in production.
-
-## Important Files
-
-- `config/config/settings.py`
-- `config/config/urls.py`
-- `config/config/manage.py`
-- `config/accounts/models.py`
-- `config/accounts/views.py`
-- `config/ai_assistant/views.py`
-- `config/ai_assistant/services.py`
-- `frontend/src/App.jsx`
-- `frontend/src/api.js`
+Welcome to the documentation for **Oppora CRM**, a multi-tenant Customer Relationship Management (CRM) application. This application features a React 19 + Vite frontend coupled with a Django REST Framework (DRF) backend, integrating OpenAI assistants, Hunter.io people lookup, AbstractAPI company enrichment, and Celery background workers.
 
 ---
 
-This document summarizes the current project structure, features, backend API surface, frontend architecture, and setup instructions for the Oppora CRM Clone.
+## 1. System Architecture & Tech Stack
+
+### Frontend Stack
+* **Core**: React 19, Vite 8, JavaScript (ES6+)
+* **Styling**: Vanilla CSS with a modern dark purple glassmorphism design system
+* **Icons**: `lucide-react`
+* **API Client**: Fetch-based `ApiClient` ([api.js](file:///c:/Users/USER/Desktop/abc/oppora_clone/oppora_clone/frontend/src/api.js)) with automatic SimpleJWT token refresh on `401 Unauthorized` responses and dynamic active workspace header injection.
+
+### Backend Stack
+* **Framework**: Django 5.2 + Django REST Framework (DRF)
+* **Authentication**: JWT authentication via `djangorestframework-simplejwt`
+* **Database**: SQLite (`db.sqlite3` in development)
+* **Task Queue**: Celery + Redis (`redis://127.0.0.1:6379/0`) for background jobs
+* **API Documentation**: OpenAPI 3.0 schema generation via `drf-spectacular`
+* **CORS**: `django-cors-headers`
+
+---
+
+## 2. Multi-Tenant Workspace & Scoping Isolation
+
+The system supports strict workspace segregation (multi-tenancy) so users only interact with data (contacts, leads, deals, activities) belonging to their active selected workspace.
+
+### Workspace Resolution Flow
+```
+[Frontend Client] (active_org_id in localStorage)
+      │
+      ├─► Injects HTTP Header: `X-Workspace-Id`
+      │
+[Django Backend]
+      │
+      ├─► Permissions & Views (`common.utils.get_active_org`)
+      │     ├─► Reads `HTTP_X_WORKSPACE_ID` from request.META
+      │     ├─► Verifies user membership in `TeamMember`
+      │     └─► Falls back to the user's first organization if header is missing
+      │
+      └─► Scopes Querysets (`organization=active_org`)
+```
+
+* **Backend Helper**: [utils.py](file:///c:/Users/USER/Desktop/abc/oppora_clone/oppora_clone/config/common/utils.py) (`get_active_org`) resolves the active workspace secure context.
+* **CORS Allowed Headers**: Django is configured to permit the custom header via `CORS_ALLOW_HEADERS` in [settings.py](file:///c:/Users/USER/Desktop/abc/oppora_clone/oppora_clone/config/config/settings.py).
+
+---
+
+## 3. Database Schema & Models
+
+### Accounts (`accounts`)
+* **`User`**: Custom user model extending `AbstractUser`. Uses `email` as the unique username field. Adds a `phone` attribute.
+
+### Organizations & Teams (`organizations`)
+* **`Organization`**: Represents a workspace/tenant. Has a `name`, `owner` (ForeignKey to `User`), and `created_at`.
+* **`TeamMember`**: Joins `User` to `Organization` with unique roles: `ADMIN`, `MANAGER`, or `MEMBER`.
+
+### Contacts Directory (`contacts`)
+* **`Contact`**: A person associated with an `Organization`. Holds `first_name`, `last_name`, `email`, `phone`, `company`, `job_title`, and timestamps.
+
+### Leads Management (`leads`)
+* **`Lead`**: An opportunity associated with a `Contact`. 
+  * Fields: `contact`, `status` (`NEW`, `CONTACTED`, `QUALIFIED`, `PROPOSAL`, `WON`, `LOST`), `score` (AI score), `notes`.
+
+### Sales Pipeline (`deals`)
+* **`Deal`**: A commercial opportunity linked to a `Lead`.
+  * Fields: `lead`, `title`, `value` (Decimal), `stage` (`DISCOVERY`, `DEMO`, `NEGOTIATION`, `CLOSED_WON`, `CLOSED_LOST`), `expected_close_date`.
+
+### Task Tracking (`activities`)
+* **`Activity`**: An action item or task related to a `Lead`.
+  * Fields: `lead`, `activity_type` (`CALL`, `MEETING`, `TASK`, `NOTE`), `title`, `description`, `due_date`, `assigned_to`, `completed`.
+
+### System Notifications (`notifications`)
+* **`Notification`**: Real-time alerts for users.
+  * Fields: `user`, `title`, `message`, `is_read`, `created_at`.
+
+### File Attachments (`attachments`)
+* **`Attachment`**: Uploaded files associated with a `Lead`.
+  * Fields: `lead`, `file`, `uploaded_by`, `uploaded_at`.
+
+---
+
+## 4. Key Architectural Modules
+
+### 4.1 Lead & Company Finder
+A workflow that lets users discover target companies and look up professional emails at those companies without manual typing.
+
+1. **Company Search**: The backend scrapes search engine criteria (or uses a dynamic template generator if search engine bot captchas block the request) to retrieve company profiles, industries, locations, and domain names.
+2. **People Lookup**: Click **Find People** on a company card; the UI switches to the **People** tab, pre-fills the domain, and executes an API lookup (via Hunter.io if key is configured, falling back to a mock result generator) to retrieve contacts.
+3. **Import to CRM**: Contacts can be imported directly, which creates a `Contact` and starts a `Lead` in the current active workspace.
+
+### 4.2 Standardized JSON Envelope & Custom Key Preservation
+All backend API responses are formatted uniformly using [renderers.py](file:///c:/Users/USER/Desktop/abc/oppora_clone/oppora_clone/config/common/renderers.py) (`GlobalJSONRenderer`):
+```json
+{
+    "success": true,
+    "status_code": 200,
+    "message": "Request completed successfully",
+    "data": {},
+    "errors": null,
+    "custom_key": "custom_value"
+}
+```
+* **Renderer custom-key preservation**: If a view returns custom keys at the top level (e.g. `"response"` for AI Chat, `"notes"` for Meeting Notes, `"email"` for Sales Drafts), the renderer preserves them so the frontend client reads them correctly.
+
+### 4.3 AI Sales Copilot
+Integrates OpenAI's `gpt-4o-mini` to provide:
+* **AI Lead Scoring**: Evaluates lead details, history, and notes to assign a score from 1-100.
+* **Lead Summary**: Consolidates lead status and notes into a concise executive overview.
+* **Sales Email Drafts**: Automatically drafts custom outreach emails based on your sales goals.
+* **CRM Chat Copilot**: An interactive assistant that queries qualified leads and pipeline deals in your active workspace to answer questions in real-time.
+
+---
+
+## 5. Backend REST API Endpoints
+
+### Auth & Profile
+* `POST /api/accounts/register/` — Registers a new user.
+* `POST /api/accounts/login/` — Standard JWT login. Returns access and refresh tokens.
+* `GET /api/accounts/profile/` — Retrieves current user profile.
+* `POST /api/token/refresh/` — Standard SimpleJWT token refresh.
+
+### Organizations & Teams
+* `GET /api/organizations/` — Lists organizations the user belongs to.
+* `POST /api/organizations/create/` — Creates a new workspace.
+* `GET /api/organizations/stats/` — Workspace contact statistics.
+* `POST /api/organizations/members/add/` — Adds a user to a workspace.
+* `GET /api/organizations/<org_id>/members/` — Lists team members.
+
+### Contacts Directory
+* `GET /api/contacts/` — List contacts in active workspace (supports pagination, search).
+* `POST /api/contacts/create/` — Add a contact.
+* `PUT /api/contacts/<id>/` — Update contact.
+* `DELETE /api/contacts/<id>/delete/` — Delete contact.
+
+### Leads & Sales Funnel
+* `GET /api/leads/` — List leads in active workspace (filters by status).
+* `POST /api/leads/create/` — Add a lead.
+* `PATCH /api/leads/<id>/` — Update status, score, or notes.
+* `DELETE /api/leads/<id>/delete/` — Delete lead.
+
+### Deals Pipeline
+* `GET /api/deals/` — Get active pipeline deals.
+* `POST /api/deals/create/` — Add a new deal (tied to a lead).
+* `PATCH /api/deals/<id>/update/` — Update stage, value, or details.
+* `POST /api/deals/convert/` — Converts a lead to `WON` and spawns a commercial deal in the pipeline.
+
+### Task Activities
+* `GET /api/activities/` — Get list of tasks.
+* `POST /api/activities/create/` — Create task/note.
+* `PATCH /api/activities/<id>/` — Update task completion state or details.
+
+### AI Sales Assistant
+* `POST /api/ai/chat/` — Workspace-scoped database chat copilot.
+* `POST /api/ai/email/` — Draft outreach emails for leads.
+* `POST /api/ai/lead-summary/` — Get lead overview.
+* `POST /api/ai/score/` — Predict lead conversion score.
+* `POST /api/ai/meeting-notes/` — Converts unstructured text to clean markdown checklist.
+
+### Lead & Company Finder
+* `POST /api/finder/companies/` — Search companies by industry, location, or keywords.
+* `POST /api/finder/search/` — Starts email/people lookup.
+* `GET /api/finder/search/<id>/status/` — Search polling status.
+* `GET /api/finder/history/` — Search query history logs.
+
+---
+
+## 6. Setup & Execution Instructions
+
+### 1. Backend Server Setup
+From the project root directory:
+1. Activate the Python virtual environment:
+   ```powershell
+   .\venv\Scripts\Activate.ps1
+   ```
+2. Navigate to backend directory and start Django development server:
+   ```powershell
+   cd config
+   python manage.py runserver
+   ```
+
+### 2. Frontend Server Setup
+From the project root directory:
+1. Navigate to the `frontend/` directory:
+   ```powershell
+   cd frontend
+   ```
+2. Run Vite local development server:
+   ```powershell
+   npm run dev
+   ```
+
+### 3. Celery & Redis Background Workers
+Redis must be running locally on port `6379`. To start the Celery worker and the Celery periodic beat scheduler together:
+* Double-click [run_celery.bat](file:///c:/Users/USER/Desktop/abc/oppora_clone/oppora_clone/run_celery.bat) in the project root, or execute:
+  ```powershell
+  .\run_celery.bat
+  ```
+
+---
+*Document Version: 1.1.0*

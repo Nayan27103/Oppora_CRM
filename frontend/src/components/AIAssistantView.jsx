@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../api';
 import { Send, Sparkles, MessageSquare, ListTodo, Copy, Check } from 'lucide-react';
 
-export default function AIAssistantView() {
+export default function AIAssistantView({ userRole }) {
   // Chat State
   const [messages, setMessages] = useState([
     { role: 'ai', text: 'Hello! I am your Oppora CRM Assistant. I can answer questions about your Qualified Leads, Deals, and overall Pipeline. Ask me anything!' }
@@ -18,6 +18,7 @@ export default function AIAssistantView() {
 
   const handleSendChat = async (e) => {
     e.preventDefault();
+    if (userRole === 'MEMBER') return;
     if (!inputMessage.trim() || sendingChat) return;
 
     const userText = inputMessage;
@@ -39,6 +40,7 @@ export default function AIAssistantView() {
 
   const handleConvertNotes = async (e) => {
     e.preventDefault();
+    if (userRole === 'MEMBER') return;
     if (!notesInput.trim() || convertingNotes) return;
 
     setConvertingNotes(true);
@@ -47,9 +49,10 @@ export default function AIAssistantView() {
       const res = await api.convertMeetingNotes(notesInput);
       if (res.success) {
         setActionItems(res.notes);
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Action items extracted successfully!', type: 'success' } }));
       }
     } catch (err) {
-      alert(err.data?.message || 'Failed to convert meeting notes');
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: err.data?.message || 'Failed to convert meeting notes', type: 'danger' } }));
     } finally {
       setConvertingNotes(false);
     }
@@ -58,6 +61,7 @@ export default function AIAssistantView() {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(actionItems);
     setCopied(true);
+    window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Action items copied to clipboard!', type: 'success' } }));
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -67,6 +71,13 @@ export default function AIAssistantView() {
         <h1 style={{ fontFamily: 'var(--font-display)' }}>AI Assistant Hub</h1>
         <p style={{ color: 'hsl(var(--text-secondary))' }}>Access CRM database insights and conversion utilities powered by OpenAI</p>
       </div>
+
+      {userRole === 'MEMBER' && (
+        <div style={{ background: 'hsl(var(--color-warning) / 0.1)', border: '1px solid hsl(var(--color-warning) / 0.2)', padding: '12px 16px', borderRadius: 'var(--radius-md)', color: 'hsl(var(--color-warning))', fontSize: '0.9rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Sparkles size={18} />
+          <span><strong>Access Restricted:</strong> AI assistant tools (CRM Data Copilot, Action Items Extractor) are only available for Workspace Administrators and Managers.</span>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.1fr', gap: '2rem', alignItems: 'start' }}>
         {/* Left Side: CRM Chat Assistant */}
@@ -102,12 +113,12 @@ export default function AIAssistantView() {
             <input
               type="text"
               className="form-input"
-              placeholder="Ask about qualified leads, active deals, pipeline value..."
+              placeholder={userRole === 'MEMBER' ? "AI Copilot is disabled for Member role" : "Ask about qualified leads, active deals, pipeline value..."}
               value={inputMessage}
               onChange={e => setInputMessage(e.target.value)}
-              disabled={sendingChat}
+              disabled={sendingChat || userRole === 'MEMBER'}
             />
-            <button type="submit" className="btn btn-primary" style={{ padding: '0.75rem' }} disabled={sendingChat || !inputMessage.trim()}>
+            <button type="submit" className="btn btn-primary" style={{ padding: '0.75rem' }} disabled={sendingChat || userRole === 'MEMBER' || !inputMessage.trim()}>
               <Send size={18} />
             </button>
           </form>
@@ -126,13 +137,14 @@ export default function AIAssistantView() {
                 <textarea
                   className="form-input"
                   rows={6}
-                  placeholder="Paste raw conversation notes here (e.g. 'John agreed to follow up by Friday, Jane will check with the development team and send the invoice...')"
+                  placeholder={userRole === 'MEMBER' ? "AI Extractor is disabled for Member role" : "Paste raw conversation notes here (e.g. 'John agreed to follow up by Friday, Jane will check with the development team and send the invoice...')" }
                   value={notesInput}
                   onChange={e => setNotesInput(e.target.value)}
                   required
+                  disabled={convertingNotes || userRole === 'MEMBER'}
                 ></textarea>
               </div>
-              <button type="submit" className="btn btn-secondary" style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }} disabled={convertingNotes || !notesInput.trim()}>
+              <button type="submit" className="btn btn-secondary" style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '8px' }} disabled={convertingNotes || userRole === 'MEMBER' || !notesInput.trim()}>
                 <Sparkles size={16} /> {convertingNotes ? 'Extracting...' : 'Convert to Action Items'}
               </button>
             </form>

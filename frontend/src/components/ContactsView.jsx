@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../api';
 import { Search, Plus, Trash2, Edit3, Grid, FileSpreadsheet, X } from 'lucide-react';
 
-export default function ContactsView({ activeOrg }) {
+export default function ContactsView({ activeOrg, userRole }) {
   const [contacts, setContacts] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+
+  const [pageSize, setPageSize] = useState(10);
 
   // Modals
   const [showFormModal, setShowFormModal] = useState(false);
@@ -30,16 +32,56 @@ export default function ContactsView({ activeOrg }) {
   const [bulkError, setBulkError] = useState('');
   const [formError, setFormError] = useState('');
 
+  // Selection State
+  const [selectedContacts, setSelectedContacts] = useState([]);
+
+  useEffect(() => {
+    setSelectedContacts([]);
+  }, [contacts]);
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedContacts(contacts.map(c => c.id));
+    } else {
+      setSelectedContacts([]);
+    }
+  };
+
+  const handleSelectContact = (id) => {
+    setSelectedContacts(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(item => item !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Are you sure you want to delete ${selectedContacts.length} selected contact(s)?`)) return;
+    try {
+      setLoading(true);
+      await Promise.all(selectedContacts.map(id => api.deleteContact(id)));
+      setSelectedContacts([]);
+      fetchContacts();
+      window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Selected contacts deleted successfully!' } }));
+    } catch (err) {
+      alert(err.data?.message || 'Failed to delete some contacts');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeOrg) {
       fetchContacts();
     }
-  }, [activeOrg, page, search]);
+  }, [activeOrg, page, search, pageSize]);
 
   const fetchContacts = async () => {
     try {
       setLoading(true);
-      const res = await api.getContacts(search, page);
+      const res = await api.getContacts(search, page, pageSize);
       if (res.success) {
         setContacts(res.data);
         setTotalPages(res.total_pages || 1);
@@ -96,12 +138,14 @@ export default function ContactsView({ activeOrg }) {
         if (res.success) {
           setShowFormModal(false);
           fetchContacts();
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Contact updated successfully!' } }));
         }
       } else {
         const res = await api.createContact(payload);
         if (res.success) {
           setShowFormModal(false);
           fetchContacts();
+          window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Contact created successfully!' } }));
         }
       }
     } catch (err) {
@@ -115,6 +159,7 @@ export default function ContactsView({ activeOrg }) {
       const res = await api.deleteContact(id);
       if (res.success) {
         fetchContacts();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Contact deleted successfully!' } }));
       }
     } catch (err) {
       alert(err.data?.message || 'Failed to delete contact');
@@ -143,6 +188,7 @@ export default function ContactsView({ activeOrg }) {
         setBulkText('');
         setShowBulkModal(false);
         fetchContacts();
+        window.dispatchEvent(new CustomEvent('show-toast', { detail: { message: 'Contacts imported successfully!' } }));
       }
     } catch (err) {
       setBulkError(err.message || err.data?.message || 'Invalid JSON format or bulk create failed');
@@ -157,24 +203,33 @@ export default function ContactsView({ activeOrg }) {
           <p style={{ color: 'hsl(var(--text-secondary))' }}>Manage customers, leads, and organizations contacts</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-secondary" onClick={() => {
-            setBulkText(JSON.stringify([
-              { first_name: "Jane", last_name: "Doe", email: "jane@example.com", phone: "123456789", company: "Stark Corp", job_title: "Manager" },
-              { first_name: "John", last_name: "Smith", email: "john@example.com", phone: "987654321", company: "Wayne Ent", job_title: "Director" }
-            ], null, 2));
-            setBulkError('');
-            setShowBulkModal(true);
-          }}>
-            <FileSpreadsheet size={16} /> Bulk Import
-          </button>
-          <button className="btn btn-primary" onClick={openCreateModal}>
-            <Plus size={16} /> Add Contact
-          </button>
+          {selectedContacts.length > 0 && userRole === 'ADMIN' && (
+            <button className="btn btn-danger" onClick={handleBulkDelete}>
+              <Trash2 size={16} /> Delete Selected ({selectedContacts.length})
+            </button>
+          )}
+          {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+            <button className="btn btn-secondary" onClick={() => {
+              setBulkText(JSON.stringify([
+                { first_name: "Jane", last_name: "Doe", email: "jane@example.com", phone: "123456789", company: "Stark Corp", job_title: "Manager" },
+                { first_name: "John", last_name: "Smith", email: "john@example.com", phone: "987654321", company: "Wayne Ent", job_title: "Director" }
+              ], null, 2));
+              setBulkError('');
+              setShowBulkModal(true);
+            }}>
+              <FileSpreadsheet size={16} /> Bulk Import
+            </button>
+          )}
+          {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+            <button className="btn btn-primary" onClick={openCreateModal}>
+              <Plus size={16} /> Add Contact
+            </button>
+          )}
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="glass-panel" style={{ padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div className="glass-panel" style={{ padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flexGrow: 1 }}>
           <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
           <input
@@ -188,6 +243,23 @@ export default function ContactsView({ activeOrg }) {
               setPage(1);
             }}
           />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '150px' }}>
+          <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', whiteSpace: 'nowrap' }}>Per Page:</span>
+          <select
+            className="form-select"
+            style={{ padding: '0.5rem 0.75rem', width: '85px', borderRadius: 'var(--radius-md)' }}
+            value={pageSize}
+            onChange={(e) => {
+              setPageSize(Number(e.target.value));
+              setPage(1);
+            }}
+          >
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
         </div>
       </div>
 
@@ -203,17 +275,37 @@ export default function ContactsView({ activeOrg }) {
               <table className="crm-table">
                 <thead>
                   <tr>
+                    {userRole === 'ADMIN' && (
+                      <th style={{ width: '40px' }}>
+                        <input 
+                          type="checkbox" 
+                          onChange={handleSelectAll} 
+                          checked={contacts.length > 0 && selectedContacts.length === contacts.length} 
+                          style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                        />
+                      </th>
+                    )}
                     <th>Name</th>
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Company</th>
                     <th>Job Title</th>
-                    <th style={{ textAlign: 'right' }}>Actions</th>
+                    {userRole !== 'MEMBER' && <th style={{ textAlign: 'right' }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {contacts.map((contact) => (
                     <tr key={contact.id}>
+                      {userRole === 'ADMIN' && (
+                        <td>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedContacts.includes(contact.id)} 
+                            onChange={() => handleSelectContact(contact.id)} 
+                            style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                          />
+                        </td>
+                      )}
                       <td style={{ fontWeight: '600' }}>{contact.first_name} {contact.last_name}</td>
                       <td>{contact.email}</td>
                       <td>{contact.phone || '-'}</td>
@@ -223,22 +315,26 @@ export default function ContactsView({ activeOrg }) {
                           <span className="badge badge-secondary">{contact.job_title}</span>
                         ) : '-'}
                       </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '8px' }}>
-                          <button
-                            onClick={() => openEditModal(contact)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))' }}
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(contact.id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
+                      {userRole !== 'MEMBER' && (
+                        <td style={{ textAlign: 'right' }}>
+                          <div style={{ display: 'inline-flex', gap: '8px' }}>
+                            <button
+                              onClick={() => openEditModal(contact)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--text-secondary))' }}
+                            >
+                              <Edit3 size={16} />
+                            </button>
+                            {userRole === 'ADMIN' && (
+                              <button
+                                onClick={() => handleDelete(contact.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'hsl(var(--color-danger))' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

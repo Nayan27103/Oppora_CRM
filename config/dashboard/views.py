@@ -36,26 +36,42 @@ class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        cache_key = "dashboard_data"
+        from common.utils import get_active_org
+        active_org = get_active_org(request)
+        active_org_id = active_org.id if active_org else 0
+        cache_key = f"dashboard_data_{request.user.id}_{active_org_id}"
         data = cache.get(cache_key)
         
         if not data:
+            if active_org:
+                leads_qs = Lead.objects.filter(contact__organization=active_org).distinct()
+                deals_qs = Deal.objects.filter(lead__contact__organization=active_org).distinct()
+                contacts_qs = Contact.objects.filter(organization=active_org).distinct()
+                activities_qs = Activity.objects.filter(lead__contact__organization=active_org).distinct()
+            else:
+                leads_qs = Lead.objects.none()
+                deals_qs = Deal.objects.none()
+                contacts_qs = Contact.objects.none()
+                activities_qs = Activity.objects.none()
+
+            organizations_qs = Organization.objects.filter(members__user=request.user).distinct()
+
             total_revenue = (
-                Deal.objects.filter(
+                deals_qs.filter(
                     stage="CLOSED_WON"
                 ).aggregate(
                     total=Sum("value")
                 )["total"] or 0
             )
 
-            total_leads = Lead.objects.count()
+            total_leads = leads_qs.count()
 
-            total_deals = Deal.objects.count()
+            total_deals = deals_qs.count()
 
-            total_contacts = Contact.objects.count()
+            total_contacts = contacts_qs.count()
 
             pipeline_value = (
-                Deal.objects.exclude(
+                deals_qs.exclude(
                     stage__in=[
                         "CLOSED_WON",
                         "CLOSED_LOST"
@@ -67,54 +83,54 @@ class DashboardView(APIView):
 
             data = {
                 "organizations":
-                    Organization.objects.count(),
+                    organizations_qs.count(),
 
                 "contacts": total_contacts,
 
                 "leads": total_leads,
 
                 "activities":
-                    Activity.objects.count(),
+                    activities_qs.count(),
 
                 "deals": total_deals,
 
                 "new_leads":
-                    Lead.objects.filter(
+                    leads_qs.filter(
                         status="NEW"
                     ).count(),
 
                 "contacted_leads":
-                    Lead.objects.filter(
+                    leads_qs.filter(
                         status="CONTACTED"
                     ).count(),
 
                 "qualified_leads":
-                    Lead.objects.filter(
+                    leads_qs.filter(
                         status="QUALIFIED"
                     ).count(),
 
                 "proposal_leads":
-                    Lead.objects.filter(
+                    leads_qs.filter(
                         status="PROPOSAL"
                     ).count(),
 
                 "won_leads":
-                    Lead.objects.filter(
+                    leads_qs.filter(
                         status="WON"
                     ).count(),
 
                 "lost_leads":
-                    Lead.objects.filter(
+                    leads_qs.filter(
                         status="LOST"
                     ).count(),
 
                 "completed_tasks":
-                    Activity.objects.filter(
+                    activities_qs.filter(
                         completed=True
                     ).count(),
 
                 "pending_tasks":
-                    Activity.objects.filter(
+                    activities_qs.filter(
                         completed=False
                     ).count(),
 

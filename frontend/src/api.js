@@ -31,6 +31,12 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
+    // Inject Active Workspace ID
+    const activeOrgId = localStorage.getItem('active_org_id');
+    if (activeOrgId) {
+      headers['X-Workspace-Id'] = activeOrgId;
+    }
+
     if (options.body && !(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
       options.body = JSON.stringify(options.body);
@@ -83,7 +89,9 @@ class ApiClient {
 
       if (response.ok) {
         const data = await response.json();
-        this.setTokens(data.access, data.refresh);
+        // Unwraps the tokens from the REST API success envelope if wrapped
+        const tokens = data.data || data;
+        this.setTokens(tokens.access, tokens.refresh);
         return true;
       } else {
         this.clearTokens();
@@ -152,8 +160,8 @@ class ApiClient {
   }
 
   // Contacts
-  async getContacts(search = '', page = 1) {
-    let path = `/api/contacts/?page=${page}`;
+  async getContacts(search = '', page = 1, pageSize = 10) {
+    let path = `/api/contacts/?page=${page}&page_size=${pageSize}`;
     if (search) {
       path += `&search=${encodeURIComponent(search)}`;
     }
@@ -264,6 +272,10 @@ class ApiClient {
     return await this.request('/api/activities/');
   }
 
+  async getDeletedActivities() {
+    return await this.request('/api/activities/deleted/');
+  }
+
   async createActivity(activityData) {
     return await this.request('/api/activities/create/', {
       method: 'POST',
@@ -284,6 +296,12 @@ class ApiClient {
     });
   }
 
+  async restoreActivity(id) {
+    return await this.request(`/api/activities/${id}/restore/`, {
+      method: 'POST'
+    });
+  }
+
   // Attachments
   async getAttachments(leadId) {
     return await this.request(`/api/attachments/lead/${leadId}/`);
@@ -297,6 +315,12 @@ class ApiClient {
     return await this.request('/api/attachments/upload/', {
       method: 'POST',
       body: formData
+    });
+  }
+
+  async deleteAttachment(attachmentId) {
+    return await this.request(`/api/attachments/${attachmentId}/delete/`, {
+      method: 'DELETE'
     });
   }
 
@@ -378,6 +402,124 @@ class ApiClient {
     return await this.request('/api/accounts/change-password/', {
       method: 'POST',
       body: { old_password: oldPassword, new_password: newPassword }
+    });
+  }
+
+  // Lead & Company Finder
+  async searchCompanies(payload) {
+    return await this.request('/api/finder/companies/', {
+      method: 'POST',
+      body: payload
+    });
+  }
+
+  async startFinderSearch(payload) {
+    return await this.request('/api/finder/search/', {
+      method: 'POST',
+      body: payload
+    });
+  }
+
+  async getFinderStatus(queryId) {
+    return await this.request(`/api/finder/search/${queryId}/status/`);
+  }
+
+  async getFinderHistory() {
+    return await this.request('/api/finder/history/');
+  }
+
+  // Organizations & Teams CRUD
+  async updateOrganization(id, name) {
+    return await this.request(`/api/organizations/${id}/update/`, {
+      method: 'PATCH',
+      body: { name }
+    });
+  }
+
+  async deleteOrganization(id) {
+    return await this.request(`/api/organizations/${id}/delete/`, {
+      method: 'DELETE'
+    });
+  }
+
+  async updateTeamMember(memberId, role) {
+    return await this.request(`/api/organizations/members/${memberId}/update/`, {
+      method: 'PATCH',
+      body: { role }
+    });
+  }
+
+  async deleteTeamMember(memberId) {
+    return await this.request(`/api/organizations/members/${memberId}/delete/`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Admin Panel APIs
+  async getAdminStats() {
+    return await this.request('/api/accounts/admin/stats/');
+  }
+
+  async getAdminUsers() {
+    return await this.request('/api/accounts/admin/users/');
+  }
+
+  async getAdminOrganizations() {
+    return await this.request('/api/accounts/admin/organizations/');
+  }
+
+  async getAdminContacts() {
+    return await this.request('/api/accounts/admin/contacts/');
+  }
+
+  async getAdminLeads() {
+    return await this.request('/api/accounts/admin/leads/');
+  }
+
+  // Workflows & Automations
+  async getWorkflows() {
+    return await this.request('/api/workflows/');
+  }
+
+  async createWorkflow(workflowData) {
+    return await this.request('/api/workflows/', {
+      method: 'POST',
+      body: workflowData
+    });
+  }
+
+  async updateWorkflow(id, workflowData) {
+    return await this.request(`/api/workflows/${id}/`, {
+      method: 'PUT',
+      body: workflowData
+    });
+  }
+
+  async deleteWorkflow(id) {
+    return await this.request(`/api/workflows/${id}/`, {
+      method: 'DELETE'
+    });
+  }
+
+  async getWorkflowRuns(workflowId = '') {
+    let path = '/api/workflows/runs/';
+    if (workflowId) {
+      path += `?workflow_id=${workflowId}`;
+    }
+    return await this.request(path);
+  }
+
+  async testURLScan(domain) {
+    return await this.request('/api/finder/urlscan/', {
+      method: 'POST',
+      body: { domain }
+    });
+  }
+
+  async testTheirStack(technology) {
+    return await this.request('/api/finder/theirstack/', {
+      method: 'POST',
+      body: { technology }
     });
   }
 }

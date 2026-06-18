@@ -59,7 +59,21 @@ class OrganizationRolePermission(BasePermission):
                 
         # 4. Check query parameters
         org_id = request.query_params.get("organization_id")
-        return org_id
+        if org_id:
+            return org_id
+
+        # 5. Check X-Workspace-Id header
+        org_id = request.META.get('HTTP_X_WORKSPACE_ID')
+        if org_id:
+            return org_id
+
+        # 6. Fallback to user's first organization
+        if request.user and request.user.is_authenticated:
+            first_membership = TeamMember.objects.filter(user=request.user).first()
+            if first_membership:
+                return first_membership.organization_id
+
+        return None
 
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:

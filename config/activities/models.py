@@ -50,6 +50,11 @@ class Activity(models.Model):
         default=False
     )
 
+    is_deleted = models.BooleanField(
+        default=False,
+        db_index=True
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True
     )

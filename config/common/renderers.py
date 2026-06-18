@@ -17,13 +17,14 @@ class GlobalJSONRenderer(JSONRenderer):
                 inner_message = "Request completed successfully" if inner_success else "An error occurred"
             inner_status_code = data.get('status_code', status_code)
             
-            formatted_data = {
+            formatted_data = data.copy()
+            formatted_data.update({
                 "success": inner_success,
                 "status_code": inner_status_code,
                 "message": inner_message,
                 "data": inner_data,
                 "errors": inner_errors
-            }
+            })
             return super().render(formatted_data, accepted_media_type, renderer_context)
             
         # Determine message based on response status

@@ -21,6 +21,16 @@ class ContactCreateView(APIView):
     ]
 
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         serializer = ContactSerializer(
             data=request.data
@@ -28,7 +38,7 @@ class ContactCreateView(APIView):
 
         if serializer.is_valid():
 
-            contact = serializer.save()
+            contact = serializer.save(organization=active_org)
 
             return Response({
                 "success": True,
@@ -49,12 +59,25 @@ class ContactListView(APIView):
     ]
 
     def get(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
 
         search = request.GET.get("search")
 
-        contacts = Contact.objects.filter(
-            organization__members__user=request.user
-        ).distinct()
+        if active_org:
+            contacts = Contact.objects.filter(
+                organization=active_org
+            ).distinct().order_by("-created_at")
+        else:
+            contacts = Contact.objects.none()
 
         if search:
 
@@ -99,10 +122,21 @@ class ContactUpdateView(APIView):
     ]
 
     def put(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         try:
             contact = Contact.objects.get(
-                id=pk
+                id=pk,
+                organization=active_org
             )
 
         except Contact.DoesNotExist:
@@ -151,11 +185,22 @@ class ContactDeleteView(APIView):
         request,
         pk
     ):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN']):
+            return permission_denied_response()
 
         try:
 
             contact = Contact.objects.get(
-                id=pk
+                id=pk,
+                organization=active_org
             )
 
         except Contact.DoesNotExist:
@@ -184,9 +229,19 @@ class ContactBulkCreateView(APIView):
 
     @transaction.atomic
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         contacts_data = request.data
-
         contacts = []
 
         for item in contacts_data:
@@ -195,23 +250,31 @@ class ContactBulkCreateView(APIView):
                 "organization_id"
             )
 
-            if not Organization.objects.filter(
-                id=organization_id
-            ).exists():
-
+            # Ensure user has ADMIN or MANAGER role of the organization they are importing into
+            try:
+                target_org = Organization.objects.get(id=organization_id)
+                if not check_user_permission(request, target_org, ['ADMIN', 'MANAGER']):
+                    return Response({
+                        "success": False,
+                        "message": f"Permission denied for organization {organization_id}"
+                    }, status=403)
+            except Organization.DoesNotExist:
                 return Response({
                     "success": False,
                     "message": f"Organization {organization_id} does not exist"
                 }, status=400)
 
+            first_name = item.get("first_name") or "Discovered"
+            last_name = item.get("last_name") or ""
             contacts.append(
                 Contact(
                     organization_id=organization_id,
-                    first_name=item["first_name"],
-                    last_name=item.get("last_name", ""),
+                    first_name=first_name,
+                    last_name=last_name,
                     email=item["email"],
                     phone=item.get("phone", ""),
-                    company=item.get("company", "")
+                    company=item.get("company", ""),
+                    job_title=item.get("job_title", "")
                 )
             )
 

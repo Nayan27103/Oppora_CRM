@@ -14,19 +14,28 @@ from common.permissions import IsOrgAdmin, IsOrgManager, IsOrgMember
 # Create your views here.
 class DealCreateView(APIView):
 
-    permission_classes = [IsAuthenticated, IsOrgMember]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
+
         lead_id = request.data.get("lead")
         if not lead_id:
             return Response({"success": False, "message": "Lead is required"}, status=400)
             
         try:
-            lead = Lead.objects.get(id=lead_id)
+            lead = Lead.objects.get(id=lead_id, contact__organization=active_org)
         except Lead.DoesNotExist:
             return Response({"success": False, "message": "Lead not found"}, status=404)
-
-        self.check_object_permissions(request, lead.contact.organization)
 
         serializer = DealSerializer(
             data=request.data
@@ -51,17 +60,30 @@ class DealCreateView(APIView):
     
 class DealListView(APIView):
 
-    permission_classes = [IsAuthenticated, IsOrgMember]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from common.responses import success_response
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
 
-        deals = Deal.objects.select_related(
-            "lead",
-            "lead__contact"
-            ).filter(
-            lead__contact__organization__members__user=request.user
-            ).distinct()
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER', 'MEMBER']):
+            return permission_denied_response()
+
+        if active_org:
+            deals = Deal.objects.select_related(
+                "lead",
+                "lead__contact"
+                ).filter(
+                lead__contact__organization=active_org
+                ).distinct().order_by("-created_at")
+        else:
+            deals = Deal.objects.none()
 
         serializer = DealSerializer(
             deals,
@@ -75,13 +97,23 @@ class DealListView(APIView):
     
 class DealUpdateView(APIView):
 
-    permission_classes = [IsAuthenticated, IsOrgManager]
+    permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         try:
 
-            deal = Deal.objects.get(id=pk)
+            deal = Deal.objects.get(id=pk, lead__contact__organization=active_org)
 
         except Deal.DoesNotExist:
 
@@ -89,8 +121,6 @@ class DealUpdateView(APIView):
                 "success": False,
                 "message": "Deal not found"
             }, status=404)
-
-        self.check_object_permissions(request, deal)
 
         serializer = DealSerializer(
             deal,
@@ -117,13 +147,23 @@ class DealUpdateView(APIView):
     
 class DealDeleteView(APIView):
 
-    permission_classes = [IsAuthenticated, IsOrgAdmin]
+    permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN']):
+            return permission_denied_response()
 
         try:
 
-            deal = Deal.objects.get(id=pk)
+            deal = Deal.objects.get(id=pk, lead__contact__organization=active_org)
 
         except Deal.DoesNotExist:
 
@@ -131,8 +171,6 @@ class DealDeleteView(APIView):
                 "success": False,
                 "message": "Deal not found"
             }, status=404)
-
-        self.check_object_permissions(request, deal)
 
         deal.delete()
 
@@ -148,6 +186,16 @@ class ConvertLeadToDealView(APIView):
 
     @transaction.atomic
     def post(self, request):
+        from common.utils import get_active_org, check_user_permission, permission_denied_response
+        active_org = get_active_org(request)
+        if not active_org:
+            return Response({
+                "success": False,
+                "message": "No active organization workspace selected."
+            }, status=400)
+
+        if not check_user_permission(request, active_org, ['ADMIN', 'MANAGER']):
+            return permission_denied_response()
 
         lead_id = request.data.get("lead_id")
 
@@ -160,7 +208,8 @@ class ConvertLeadToDealView(APIView):
             try:
 
                 lead = Lead.objects.get(
-                    id=lead_id
+                    id=lead_id,
+                    contact__organization=active_org
                 )
 
             except Lead.DoesNotExist:

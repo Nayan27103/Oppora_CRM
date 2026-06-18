@@ -7,6 +7,13 @@ from .views import (
     ResetPasswordView,
     ChangePasswordView
 )
+from .admin_views import (
+    AdminSystemStatsView,
+    AdminUsersListView,
+    AdminOrganizationsListView,
+    AdminContactsListView,
+    AdminLeadsListView
+)
 
 urlpatterns = [
     path("register/", RegisterView.as_view()),
@@ -15,4 +22,11 @@ urlpatterns = [
     path("forgot-password/", ForgotPasswordView.as_view()),
     path("reset-password/", ResetPasswordView.as_view()),
     path("change-password/", ChangePasswordView.as_view()),
+    
+    # Admin Panel APIs
+    path("admin/stats/", AdminSystemStatsView.as_view()),
+    path("admin/users/", AdminUsersListView.as_view()),
+    path("admin/organizations/", AdminOrganizationsListView.as_view()),
+    path("admin/contacts/", AdminContactsListView.as_view()),
+    path("admin/leads/", AdminLeadsListView.as_view()),
 ]

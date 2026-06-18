@@ -7,34 +7,25 @@ from leads.models import Lead
 from activities.models import Activity
 from deals.models import Deal
 
-def clear_dashboard_cache():
-    cache.delete("dashboard_data")
-
-def clear_org_stats_cache():
-    cache.delete("org_stats_data")
-
-def clear_lead_stats_cache():
-    cache.delete("lead_stats_data")
+def clear_cache():
+    cache.clear()
 
 @receiver([post_save, post_delete], sender=Organization)
 def organization_changed(sender, instance, **kwargs):
-    clear_dashboard_cache()
-    clear_org_stats_cache()
+    clear_cache()
 
 @receiver([post_save, post_delete], sender=Contact)
 def contact_changed(sender, instance, **kwargs):
-    clear_dashboard_cache()
-    clear_org_stats_cache()
+    clear_cache()
 
 @receiver([post_save, post_delete], sender=Lead)
 def lead_changed(sender, instance, **kwargs):
-    clear_dashboard_cache()
-    clear_lead_stats_cache()
+    clear_cache()
 
 @receiver([post_save, post_delete], sender=Activity)
 def activity_changed(sender, instance, **kwargs):
-    clear_dashboard_cache()
+    clear_cache()
 
 @receiver([post_save, post_delete], sender=Deal)
 def deal_changed(sender, instance, **kwargs):
-    clear_dashboard_cache()
+    clear_cache()
